@@ -2,8 +2,9 @@
 ## A Final Fantasy XIV crafting bot
 
 ### Overview
-Talan is a crafting bot currently driven by a command line interface. Rather than trying to be a crafting
-solver like [FFXIV Crafting Optimizer](https://ffxiv-beta.lokyst.net/#/simulator), It reads in FFXIV macros directly.
+Talan is a crafting bot designed for max level crafters. Rather than trying to be a crafting
+solver like [FFXIV Crafting Optimizer](https://ffxiv-beta.lokyst.net/#/simulator), It reads in FFXIV macros directly,
+but executes them using its own engine that has none of the limitations of the in-game macro system.
 
 Special thanks to Clorifex of [GarlandTools](https://garlandtools.org) and Miu of [FFXIV Teamcraft](https://ffxivteamcraft.com)
 for various bits of help along the way.
