@@ -23,6 +23,7 @@ Talan is still in alpha but already has a fairly solid set of features
 Talan is still under active development with the following roadmap in mind:
 - Verifying all abilities in macros are valid.
 - Setting appropriate role actions if a macro requires them.
-- Using NQ or HQ materials base on priority.
+- Using NQ or HQ materials based on priority.
 - Determine crafting prerequisites and adding them to the task queue.
 - Allowing default macros to be assigned to difficulty tiers / progress requirements.
+- Building a web interface for using the tool.
