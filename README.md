@@ -27,3 +27,37 @@ Talan is still under active development with the following roadmap in mind:
 - Determine crafting prerequisites and adding them to the task queue.
 - Allowing default macros to be assigned to difficulty tiers / progress requirements.
 - Building a web interface for using the tool.
+
+### Usage
+Right now Talan is driven via a command line interface and is not distributed as a binary.
+
+To use it you will first need to install Rust via the [installation instructions](https://www.rust-lang.org/en-US/install.html). If given the option, you need the beta/2018 channel. Building Talan is a standard rust affair of:
+
+```
+chris@macbook ~/src/talan (master) $ cargo build
+    Finished dev [unoptimized + debuginfo] target(s) in 0.24s
+chris@macbook ~/src/talan (master) $ ./target/debug/talan -h
+Talan 0.5.0
+Christopher Anderson <chris@nullcode.org>
+
+USAGE:
+    talan [FLAGS] [OPTIONS] <macro file> <item name>
+
+FLAGS:
+        --collectable    Item(s) will be crafted as collectable
+    -h, --help           Prints help information
+    -d                   Increase delay between actions and UI navigation. Recommended with higher latency or input lag.
+                         [UNIMPLEMENTED]
+    -V, --version        Prints version information
+
+OPTIONS:
+    -c <count>               Number of items to craft [default: 1]
+    -g <gearset>             Gearset to use for this crafting task. [default: 0]
+    -i <recipe_index>        For recipes which have multiple search results this offset is used to determine the
+                             specific recipe to use. Offsets start at 0 for the first recipe in search results and
+                             increment by one for each recipe down. [default: 0]
+
+ARGS:
+    <macro file>    Path to the file containing the XIV macros to use
+    <item name>     Name of the item to craft
+```
