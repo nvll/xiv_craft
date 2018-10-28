@@ -1,5 +1,6 @@
 # Talan
 ## A Final Fantasy XIV crafting bot
+[![Talan crafting 6x Grade 3 Infusion of Strength](http://img.youtube.com/vi/--hmcNVyhaA/0.jpg)](https://www.youtube.com/watch?v=--hmcNVyhaA)
 
 ### Overview
 Talan is a crafting bot designed for max level crafters. Rather than trying to be a crafting
