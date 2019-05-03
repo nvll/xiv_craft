@@ -5,7 +5,7 @@ use log;
 use std::collections::HashSet;
 
 lazy_static::lazy_static! {
-    static ref role_actions: HashSet<&'static str> =  {
+    static ref ROLE_ACTIONS: HashSet<&'static str> =  {
         let mut h = HashSet::new();
         h.insert("brand of earth");
         h.insert("brand of fire");
@@ -62,7 +62,7 @@ impl RoleActions {
     }
 
     pub fn is_role_action(&self, action: &str) -> bool {
-        role_actions.contains(&*action.to_lowercase())
+        ROLE_ACTIONS.contains(&*action.to_lowercase())
     }
 
     #[allow(dead_code)]
@@ -76,7 +76,7 @@ impl RoleActions {
     }
 
     // Returns Some() if the craft engine needs to remove the returned action so that it
-    // can add the new onee
+    // can add the new one.
     pub fn add_action(&mut self, action: &str) {
         if !self.is_role_action(action) {
             panic!("provided action is not a role action: `{}`", action);

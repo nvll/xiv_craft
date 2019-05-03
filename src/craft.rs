@@ -45,7 +45,7 @@ pub fn craft_items(window: ui::WinHandle, tasks: &[Task]) {
         // Time to craft the items
         execute_task(window, &task);
 
-        // Close out of the cvrafting window and stand up
+        // Close out of the crafting window and stand up
         clear_windows(window);
         ui::wait_secs(2);
         if task.collectable {
@@ -97,7 +97,7 @@ fn select_recipe(window: ui::WinHandle, task: &Task) {
     ui::wait_ms(200);
     ui::enter(window);
 
-    // It takse up to a second for results to populate
+    // It takes up to a second for results to populate
     ui::wait_secs(1);
 
     // Navigate to the offset we need

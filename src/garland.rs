@@ -7,18 +7,18 @@ use url::form_urlencoded;
 
 impl fmt::Display for JsonItem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "item {{");
-        writeln!(f, "\tname: {}", self.item.name);
-        write!(f, "\tid:   {}", self.item.id);
-        write!(f, "\tingredients; {{");
+        writeln!(f, "item {{")?;
+        writeln!(f, "\tname: {}", self.item.name)?;
+        write!(f, "\tid:   {}", self.item.id)?;
+        write!(f, "\tingredients; {{")?;
         for (i, elem) in self.ingredients.iter().enumerate() {
             writeln!(
                 f,
                 "\t\t {}x {} (id: {})",
                 self.item.craft[0].ingredients[i].amount, elem.name, elem.id
-            );
+            )?;
         }
-        writeln!(f, "\t}}");
+        writeln!(f, "\t}}")?;
         writeln!(f, "}}")
     }
 }
@@ -77,10 +77,10 @@ pub struct Material {
 
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{}", self.name);
-        writeln!(f, "[");
+        writeln!(f, "{}", self.name)?;
+        writeln!(f, "[")?;
         for m in &self.materials {
-            writeln!(f, "  {}x {}", m.count, m.name);
+            writeln!(f, "  {}x {}", m.count, m.name)?;
         }
         writeln!(f, "]")
     }
