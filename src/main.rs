@@ -53,7 +53,7 @@ fn main() -> Result<(), Error> {
 
     let opt = Opt::from_args();
     let mut window: ui::WinHandle = null_mut();
-    // Can this became map err?
+    // Can this become map err?
     if !ui::get_window(&mut window) {
         return Err(failure::format_err!(
             "Could not find FFXIV window. Is the client running?"
