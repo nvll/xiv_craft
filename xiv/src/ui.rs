@@ -7,7 +7,7 @@ use std::time::Duration;
 
 // Wait |s| seconds, fractions permitted.
 pub fn wait(s: f32) {
-    let ms = (s * 1000 as f32) as u64;
+    let ms = (s * 1000_f32) as u64;
     sleep(Duration::from_millis(ms));
 }
 
@@ -48,76 +48,76 @@ mod constants {
     pub const MSG_KEY_CHAR: u32 = 0;
 }
 
-pub fn cursor_down(xiv_handle: &super::XivHandle) {
+pub fn cursor_down(xiv_handle: super::XivHandle) {
     log::debug!("[down]");
     send_key(xiv_handle, constants::KEY_DOWN);
 }
 
-pub fn cursor_up(xiv_handle: &super::XivHandle) {
+pub fn cursor_up(xiv_handle: super::XivHandle) {
     log::debug!("[up]");
     send_key(xiv_handle, constants::KEY_UP);
 }
 
-pub fn cursor_left(xiv_handle: &super::XivHandle) {
+pub fn cursor_left(xiv_handle: super::XivHandle) {
     log::debug!("[left]");
     send_key(xiv_handle, constants::KEY_LEFT);
 }
 
-pub fn cursor_right(xiv_handle: &super::XivHandle) {
+pub fn cursor_right(xiv_handle: super::XivHandle) {
     log::debug!("[right]");
     send_key(xiv_handle, constants::KEY_RIGHT);
 }
 
-pub fn cursor_backward(xiv_handle: &super::XivHandle) {
+pub fn cursor_backward(xiv_handle: super::XivHandle) {
     log::debug!("[ui back]");
     send_key(xiv_handle, constants::KEY_BACKWARD)
 }
 
-pub fn cursor_forward(xiv_handle: &super::XivHandle) {
+pub fn cursor_forward(xiv_handle: super::XivHandle) {
     log::debug!("[ui forward]");
     send_key(xiv_handle, constants::KEY_FORWARD);
 }
 
-pub fn press_backspace(xiv_handle: &super::XivHandle) {
+pub fn press_backspace(xiv_handle: super::XivHandle) {
     log::debug!("[backspace]");
     send_key(xiv_handle, constants::KEY_BACKSPACE);
 }
 
-pub fn press_confirm(xiv_handle: &super::XivHandle) {
+pub fn press_confirm(xiv_handle: super::XivHandle) {
     log::debug!("[confirm]");
     send_key(xiv_handle, constants::KEY_CONFIRM);
 }
 
-pub fn press_cancel(xiv_handle: &super::XivHandle) {
+pub fn press_cancel(xiv_handle: super::XivHandle) {
     log::debug!("[cancel]");
     send_key(xiv_handle, constants::KEY_CANCEL);
 }
 
-pub fn press_enter(xiv_handle: &super::XivHandle) {
+pub fn press_enter(xiv_handle: super::XivHandle) {
     log::debug!("[enter]");
     send_key(xiv_handle, constants::KEY_ENTER);
     wait(1.0);
 }
 
-pub fn press_escape(xiv_handle: &super::XivHandle) {
+pub fn press_escape(xiv_handle: super::XivHandle) {
     log::debug!("[esc]");
     send_key(xiv_handle, constants::KEY_ESCAPE);
 }
 
-pub fn target_nearest_npc(xiv_handle: &super::XivHandle) {
+pub fn target_nearest_npc(xiv_handle: super::XivHandle) {
     press_enter(xiv_handle);
     send_string(xiv_handle, "/tnpc");
     press_enter(xiv_handle);
 }
 
-pub fn send_string(xiv_handle: &super::XivHandle, s: &str) {
+pub fn send_string(xiv_handle: super::XivHandle, s: &str) {
     log::trace!("sending string: '{}'\n", s);
     for c in s.chars() {
         send_char(xiv_handle, c);
     }
 }
 
-pub fn send_action(xiv_handle: &super::XivHandle, s: &str, _delay: Option<i64>) {
+pub fn send_action(xiv_handle: super::XivHandle, s: &str, _delay: Option<i64>) {
     send_string(xiv_handle, s);
     wait(0.5);
     press_enter(xiv_handle);
@@ -128,7 +128,7 @@ pub fn send_action(xiv_handle: &super::XivHandle, s: &str, _delay: Option<i64>) 
 // Talan midway then the UI can be in an inconsistent state, this
 // attempts to deal with that. This has been tested in environments
 // as low as 11 fps.
-pub fn clear_window(xiv_handle: &super::XivHandle) {
+pub fn clear_window(xiv_handle: super::XivHandle) {
     println!("clearing window...");
     // If the text input has focus, try clearing the text to prevent
     // saying junk in a linkshell, /say, etc.
@@ -155,9 +155,9 @@ pub fn clear_window(xiv_handle: &super::XivHandle) {
     press_cancel(xiv_handle);
 }
 
-pub fn send_char(xiv_handle: &super::XivHandle, c: char) {
+pub fn send_char(xiv_handle: super::XivHandle, c: char) {
     log::trace!("char: {}", c);
-    send_msg(&xiv_handle, constants::MSG_KEY_CHAR, c as i32);
+    send_msg(xiv_handle, constants::MSG_KEY_CHAR, c as i32);
     // TODO: Redo this when we have a better timing system
     let mut wait_s = 0.05;
     if xiv_handle.slow_mode {
@@ -166,10 +166,10 @@ pub fn send_char(xiv_handle: &super::XivHandle, c: char) {
     wait(wait_s);
 }
 
-pub fn send_key(xiv_handle: &super::XivHandle, c: i32) {
+pub fn send_key(xiv_handle: super::XivHandle, c: i32) {
     log::trace!("key {:x}", c);
-    send_msg(&xiv_handle, constants::MSG_KEY_DOWN, c);
-    send_msg(&xiv_handle, constants::MSG_KEY_UP, c);
+    send_msg(xiv_handle, constants::MSG_KEY_DOWN, c);
+    send_msg(xiv_handle, constants::MSG_KEY_UP, c);
     let mut wait_s = 0.05;
     if xiv_handle.slow_mode {
         wait_s += 0.1;
@@ -178,7 +178,7 @@ pub fn send_key(xiv_handle: &super::XivHandle, c: i32) {
 }
 
 // Send a character/key to the XIV window
-fn send_msg(_xiv_handle: &super::XivHandle, _msg: u32, _key: i32) {
+fn send_msg(_xiv_handle: super::XivHandle, _msg: u32, _key: i32) {
     #[cfg(windows)]
     unsafe {
         PostMessageA(_xiv_handle.hwnd, _msg as UINT, _key as usize, 0);

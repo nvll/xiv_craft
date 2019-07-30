@@ -6,7 +6,7 @@ use log;
 use xiv::ui;
 
 // Runs through the set of tasks
-pub fn craft_items(handle: &xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
+pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
     // TODO: Role action support
     // let mut role_actions: [RoleActions; xiv::JOB_CNT]  = [
     //     RoleActions::new(),
@@ -81,7 +81,7 @@ pub fn craft_items(handle: &xiv::XivHandle, cfg: &Config, tasks: &[Task], macros
     }
 }
 
-// fn configure_role_actions(handle: &xiv::XivHandle, role_actions: &mut RoleActions, actions: &[Action]) {
+// fn configure_role_actions(handle: xiv::XivHandle, role_actions: &mut RoleActions, actions: &[Action]) {
 //     for action in actions {
 //         if role_actions.is_role_action(&action.name) {
 //             // A return value that isn't 'None' means we need to add the action in the client
@@ -96,14 +96,14 @@ pub fn craft_items(handle: &xiv::XivHandle, cfg: &Config, tasks: &[Task], macros
 //     }
 // }
 
-pub fn open_craft_window(handle: &xiv::XivHandle) {
+pub fn open_craft_window(handle: xiv::XivHandle) {
     ui::send_key(handle, 'N' as i32);
     ui::wait(1.0);
 }
 
 // Selects the appropriate recipe then leaves the cursor on the Synthesize
 // button, ready for material selection.
-pub fn select_recipe(handle: &xiv::XivHandle, task: &Task) {
+pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
     // Bring up the crafting window itself and give it time to appear
     open_craft_window(handle);
     log::info!("selecting recipe...");
@@ -132,7 +132,7 @@ pub fn select_recipe(handle: &xiv::XivHandle, task: &Task) {
     ui::press_confirm(handle);
 }
 
-pub fn select_materials(handle: &xiv::XivHandle, task: &Task) {
+pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
     log::info!("selecting materials...");
     ui::cursor_up(handle);
     // TODO implement HQ > NQ
@@ -160,7 +160,7 @@ pub fn select_materials(handle: &xiv::XivHandle, task: &Task) {
     }
 }
 
-fn execute_task(handle: &xiv::XivHandle, task: &Task, actions: &[Action]) {
+fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
     for task_index in 1..=task.quantity {
         log::info!(
             "crafting {} {}/{}",
@@ -204,25 +204,25 @@ fn execute_task(handle: &xiv::XivHandle, task: &Task, actions: &[Action]) {
     }
 }
 
-fn send_action(handle: &xiv::XivHandle, action: &str) {
+fn send_action(handle: xiv::XivHandle, action: &str) {
     log::info!("action(`{}`)", action);
     ui::press_enter(handle);
     ui::send_string(handle, &format!("/ac \"{}\"", action));
     ui::press_enter(handle);
 }
 
-pub fn change_gearset(handle: &xiv::XivHandle, gearset: i32) {
+pub fn change_gearset(handle: xiv::XivHandle, gearset: i32) {
     log::info!("changing to gearset {}", gearset);
     ui::press_enter(handle);
     ui::send_string(handle, &format!("/gearset change {}", gearset));
     ui::press_enter(handle);
 }
 
-pub fn toggle_collectable(handle: &xiv::XivHandle) {
+pub fn toggle_collectable(handle: xiv::XivHandle) {
     send_action(handle, &"collectable synthesis");
 }
 
-// pub fn aaction(handle: &xiv::XivHandle, verb: &str, action: &str) {
+// pub fn aaction(handle: xiv::XivHandle, verb: &str, action: &str) {
 //     ui::press_enter(handle);
 //     if verb == "clear" {
 //         ui::send_action(handle, "/aaction clear", None);
@@ -231,15 +231,15 @@ pub fn toggle_collectable(handle: &xiv::XivHandle) {
 //     }
 // }
 
-// pub fn aaction_clear(handle: &xiv::XivHandle) {
+// pub fn aaction_clear(handle: xiv::XivHandle) {
 //     aaction(handle, "clear", "");
 //     ui::wait(1.0)
 // }
 
-// pub fn aaction_add(handle: &xiv::XivHandle, action: &str) {
+// pub fn aaction_add(handle: xiv::XivHandle, action: &str) {
 //     aaction(handle, "on", action)
 // }
 
-// pub fn aaction_remove(handle: &xiv::XivHandle, action: &str) {
+// pub fn aaction_remove(handle: xiv::XivHandle, action: &str) {
 //     aaction(handle, "off", action)
 // }

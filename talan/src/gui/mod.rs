@@ -263,11 +263,8 @@ fn draw_ui<'a>(
                     }
                 });
             }
-            if ui.small_button(im_str!("Save changes")) {
-                match write_config(cfg) {
-                    Err(_) => println!("Error writing config :("),
-                    _ => (),
-                };
+            if ui.small_button(im_str!("Save changes")) && write_config(cfg).is_err() {
+                println!("Error writing config :(")
             }
         });
 
@@ -325,9 +322,8 @@ pub fn start(
             );
 
             if let Event::WindowEvent { event, .. } = event {
-                match event {
-                    CloseRequested => quit = true,
-                    _ => (),
+                if event == CloseRequested {
+                    quit = true;
                 }
             }
         });

@@ -88,7 +88,7 @@ mod test {
     #[test]
     #[ignore]
     fn role_actions() {
-        let mut ra = RoleActions::new(&xiv::XivHandle{});
+        let mut ra = RoleActions::new(xiv::XivHandle{});
         ra.add_action("tricks of the trade");
         ra.add_action("reclaim");
         assert_eq!(2, ra.count());

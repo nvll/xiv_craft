@@ -1,6 +1,6 @@
 pub mod ui;
 
-use failure::{format_err, Error};
+use failure::Error;
 use log;
 use std::fmt;
 

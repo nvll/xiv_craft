@@ -68,7 +68,7 @@ fn main() -> Result<(), Error> {
             );
             // Open the menu initially because we likely want to keep the player from
             // being logged out due to the 30 minute afk timer.
-            open_retainer_menu(&h);
+            open_retainer_menu(h);
             sleep(delay_m * 60);
             delay_m = 0;
         }
@@ -77,9 +77,9 @@ fn main() -> Result<(), Error> {
         // important because if the user does anything in the intervening time,
         // even simple things like tabbing to the game and out again, it may
         // change the input state and throw all our inputs off by one.
-        open_retainer_menu(&h);
+        open_retainer_menu(h);
         for r in &retainers {
-            reassign_venture(&h, *r);
+            reassign_venture(h, *r);
         }
 
         now = Local::now();
@@ -97,7 +97,7 @@ fn main() -> Result<(), Error> {
     }
 }
 
-fn open_retainer_menu(h: &xiv::XivHandle) {
+fn open_retainer_menu(h: xiv::XivHandle) {
     // This will close the game menu if open and exit the retainer window if
     // it was open from a previous run.
     ui::press_escape(h);
@@ -124,7 +124,7 @@ fn open_retainer_menu(h: &xiv::XivHandle) {
 // General usability rules
 // 1. Wait 1 second after moving around in a menu
 // 2. Wait 2 seconds after pressing a button for UI changes / Feo Ul / Retainer dialog.
-fn reassign_venture(h: &xiv::XivHandle, r_id: u32) {
+fn reassign_venture(h: xiv::XivHandle, r_id: u32) {
     println!("Selecting Retainer #{}", r_id);
     for _ in 0..r_id - 1 {
         ui::cursor_down(h);

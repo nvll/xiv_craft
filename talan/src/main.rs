@@ -41,14 +41,9 @@ fn main() -> Result<(), Error> {
         _ => (),
     }
 
-    let mut xiv_slow = false;
-    if matches.is_present("slow") {
-        xiv_slow = true;
-    }
-
     simple_logger::init_with_level(level)?;
 
-    let handle = xiv::init(xiv_slow)?;
+    let handle = xiv::init(matches.is_present("slow"))?;
     // Read here, but can be updated by a UI impl.
     let mut cfg = config::read_config();
     // Any UI implementation will populate this vec.
@@ -60,31 +55,29 @@ fn main() -> Result<(), Error> {
         log::info!("\t{}", m.name);
     }
 
-    if let Some(_) = matches.subcommand_matches("debug1") {
-        return debug1_test(&handle, &cfg);
+    if matches.subcommand_matches("debug1").is_some() {
+        return debug1_test(handle, &cfg);
     }
 
-    if let Some(_) = matches.subcommand_matches("debug2") {
-        return debug2_test(&handle, &cfg);
+    if matches.subcommand_matches("debug2").is_some() {
+        return debug2_test(handle, &cfg);
     }
 
-    let result = gui::start(&mut cfg, &mut tasks, &macros)?;
-    match result {
-        true => {
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            craft_items(&handle, &cfg, &tasks[..], &macros[..]);
-        }
-        false => println!("exiting..."),
+    if gui::start(&mut cfg, &mut tasks, &macros)? {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        craft_items(handle, &cfg, &tasks[..], &macros[..]);
+    } else {
+        println!("exiting...");
     }
     Ok(())
 }
 
-fn debug1_test(handle: &xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
+fn debug1_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
     if let Some(recipe) = get_recipe_for_job("iron ingot", 1 /* BSM */)? {
         let task = Task {
             quantity: 1,
             is_collectable: false,
-            recipe: recipe,
+            recipe,
             ignore_mat_quality: true,
             mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
             macro_id: 0,
@@ -96,12 +89,12 @@ fn debug1_test(handle: &xiv::XivHandle, cfg: &config::Config) -> Result<(), Erro
 }
 
 // Used for testing general UI functionality
-fn debug2_test(handle: &xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
+fn debug2_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
     if let Some(recipe) = get_recipe_for_job("clOud PeArl", 0 /* CRP */)? {
         let task = Task {
             quantity: 1,
             is_collectable: false,
-            recipe: recipe,
+            recipe,
             ignore_mat_quality: true,
             mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
             macro_id: 0,
