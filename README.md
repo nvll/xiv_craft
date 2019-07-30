@@ -1,6 +1,6 @@
 # XIVTools
-## Ventures: A Venture Scheduling Bot
-ventures is a simple bot that will reassign the ventures of specified retainers every sixty seconds. For more information check `-h.
+## Ventures: A Venture Scheduling Automator
+ventures is a simple bot that will reassign the ventures of specified retainers every sixty minutes. For more information check `-h`.
 
 For best results, open the retainer window and then minimize the game while in windowed mode.
 
