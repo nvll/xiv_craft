@@ -190,7 +190,9 @@ fn draw_ui<'a>(
                     }
 
                     ui.with_item_width(75.0, || {
-                        ui.input_int(im_str!("Count"), &mut task.quantity).build();
+                        if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
+                            task.quantity = max(1, task.quantity);
+                        }
                         ui.same_line(0.0);
                         ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
                     });
