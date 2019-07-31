@@ -63,12 +63,11 @@ fn main() -> Result<(), Error> {
         return debug2_test(handle, &cfg);
     }
 
-    if gui::start(&mut cfg, &mut tasks, &macros)? {
+    while gui::start(&mut cfg, &mut tasks, &macros)? {
         std::thread::sleep(std::time::Duration::from_millis(1000));
         craft_items(handle, &cfg, &tasks[..], &macros[..]);
-    } else {
-        println!("exiting...");
     }
+    println!("exiting...");
     Ok(())
 }
 
