@@ -49,58 +49,57 @@ mod constants {
 }
 
 pub fn cursor_down(xiv_handle: super::XivHandle) {
-    log::debug!("[down]");
+    log::trace!("[down]");
     send_key(xiv_handle, constants::KEY_DOWN);
 }
 
 pub fn cursor_up(xiv_handle: super::XivHandle) {
-    log::debug!("[up]");
+    log::trace!("[up]");
     send_key(xiv_handle, constants::KEY_UP);
 }
 
 pub fn cursor_left(xiv_handle: super::XivHandle) {
-    log::debug!("[left]");
+    log::trace!("[left]");
     send_key(xiv_handle, constants::KEY_LEFT);
 }
 
 pub fn cursor_right(xiv_handle: super::XivHandle) {
-    log::debug!("[right]");
+    log::trace!("[right]");
     send_key(xiv_handle, constants::KEY_RIGHT);
 }
 
 pub fn cursor_backward(xiv_handle: super::XivHandle) {
-    log::debug!("[ui back]");
+    log::trace!("[ui back]");
     send_key(xiv_handle, constants::KEY_BACKWARD)
 }
 
 pub fn cursor_forward(xiv_handle: super::XivHandle) {
-    log::debug!("[ui forward]");
+    log::trace!("[ui forward]");
     send_key(xiv_handle, constants::KEY_FORWARD);
 }
 
 pub fn press_backspace(xiv_handle: super::XivHandle) {
-    log::debug!("[backspace]");
+    log::trace!("[backspace]");
     send_key(xiv_handle, constants::KEY_BACKSPACE);
 }
 
 pub fn press_confirm(xiv_handle: super::XivHandle) {
-    log::debug!("[confirm]");
+    log::trace!("[confirm]");
     send_key(xiv_handle, constants::KEY_CONFIRM);
 }
 
 pub fn press_cancel(xiv_handle: super::XivHandle) {
-    log::debug!("[cancel]");
+    log::trace!("[cancel]");
     send_key(xiv_handle, constants::KEY_CANCEL);
 }
 
 pub fn press_enter(xiv_handle: super::XivHandle) {
-    log::debug!("[enter]");
+    log::trace!("[enter]");
     send_key(xiv_handle, constants::KEY_ENTER);
-    wait(1.0);
 }
 
 pub fn press_escape(xiv_handle: super::XivHandle) {
-    log::debug!("[esc]");
+    log::trace!("[esc]");
     send_key(xiv_handle, constants::KEY_ESCAPE);
 }
 

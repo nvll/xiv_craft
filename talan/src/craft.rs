@@ -205,7 +205,6 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
 }
 
 fn send_action(handle: xiv::XivHandle, action: &str) {
-    log::debug!("action(`{}`)", action);
     ui::press_enter(handle);
     ui::send_string(handle, &format!("/ac \"{}\"", action));
     ui::press_enter(handle);
