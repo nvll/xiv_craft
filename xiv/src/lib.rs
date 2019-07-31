@@ -6,6 +6,7 @@ use std::fmt;
 
 #[cfg(windows)]
 use {
+    failure::format_err,
     std::ffi::CStr,
     winapi::shared::basetsd::LONG_PTR,
     winapi::shared::minwindef::BOOL,
