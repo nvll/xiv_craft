@@ -6,5 +6,5 @@
 /.vscode
 /target
 Cargo.lock
-config.js
+config.json
 *.orig
