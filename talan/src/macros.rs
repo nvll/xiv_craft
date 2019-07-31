@@ -26,6 +26,10 @@ impl fmt::Display for Action {
 fn parse_buffer(buffer: &str) -> Result<Vec<Action>, Error> {
     let mut actions = vec![];
     for line in buffer.trim().lines() {
+        if line.trim().as_bytes()[0] == '#' as u8 {
+            log::info!("skipping commented line: {}", line);
+            continue;
+        }
         actions.push(parse_line(line.trim())?);
     }
 
@@ -86,6 +90,7 @@ mod tests {
         /ac "Great Strides" <wait.2>
         /ac "Manipulation II" <wait.3>
         /ac "Byregot's Blessing" <wait.3>
+        #/ac "Commented Action" <wait.1>
         /ac "Careful Synthesis III" <wait.3>"#;
 
     #[test]
