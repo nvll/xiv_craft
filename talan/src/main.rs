@@ -44,21 +44,30 @@ fn main() -> Result<(), Error> {
     simple_logger::init_with_level(level)?;
 
     let handle = xiv::init(matches.is_present("slow"))?;
-    let mut cfg = config::read_config();
-    // If we cached any task info but the user doesn't want it
-    // anymore then it needs to be cleared out.
-    if !cfg.options.reload_tasks {
-        cfg.tasks.clear();
-        if write_config(&cfg).is_err() {
-            log::error!("failed to write config");
-        }
-    }
 
     // These are only read at startup.
     let macros = macros::get_macro_list()?;
     log::info!("Scanning macros:");
     for m in &macros {
         log::info!("\t{}", m.name);
+    }
+
+    let mut cfg = config::read_config();
+    // If we cached any task info but the user doesn't want it anymore then it
+    // needs to be cleared out.
+    if !cfg.options.reload_tasks {
+        cfg.tasks.clear();
+        if write_config(&cfg).is_err() {
+            log::error!("failed to write config");
+        }
+    } else {
+        // If we restored tasks from a saved config and the macro count changed
+        // then the id may not be valid anymore.
+        for task in &mut cfg.tasks {
+            if task.macro_id >= macros.len() as i32 {
+                task.macro_id = 0;
+            }
+        }
     }
 
     if matches.subcommand_matches("debug1").is_some() {

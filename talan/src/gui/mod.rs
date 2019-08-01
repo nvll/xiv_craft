@@ -206,7 +206,9 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
             ui.separator();
             // Only show the craft button if we have tasks added
             if !cfg.tasks.is_empty() && button(ui, "Craft Tasks") {
-                write_config(cfg);
+                if write_config(cfg).is_err() {
+                    log::error!("failed to write config");
+                }
                 state.return_tasks = true;
             }
         });
