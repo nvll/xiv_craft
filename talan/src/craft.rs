@@ -3,7 +3,12 @@ use crate::config::Config;
 use crate::macros::{Action, MacroFile};
 use crate::task::Task;
 use log;
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 use xiv::ui;
+
+// Milliseconds to pad the GCD to account for latency
+const GCD_PADDING: u64 = 150;
 
 // Runs through the set of tasks
 pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
@@ -174,13 +179,28 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
         ui::press_confirm(handle);
         ui::wait(1.0);
 
+        // The first action is always immediate.
+        let mut next_action = Instant::now();
+        let mut prev_action = next_action;
         for action in actions {
-            send_action(handle, &action.name);
-            if action.wait == 3 {
-                ui::wait(2.5);
-            } else {
-                ui::wait(2.0);
+            ui::press_enter(handle);
+            ui::send_string(handle, &format!("/ac \"{}\"", &action.name));
+            // At this point the action is queued in the text buffer, so we can
+            // wait the GCD duration based on the last action we sent.
+            let mut now = Instant::now();
+            if now < next_action {
+                let delta = next_action - now;
+                log::trace!("sleeping {:?}", delta);
+                sleep(delta);
             }
+            ui::press_enter(handle);
+            // Handle turning a 3.0 wait in traditional macros into something closer to a real GCD
+            let delay = if action.wait == 3 { 2500 } else { 2000 };
+
+            now = Instant::now();
+            log::debug!("action: {} ({:?})", action.name, now - prev_action);
+            prev_action = now;
+            next_action = now + Duration::from_millis(delay + GCD_PADDING);
         }
 
         // There are two paths here. If an item is collectable then it will
