@@ -51,7 +51,7 @@ fn read_config_from_file(path: &Path) -> Result<Config, Error> {
 
 fn write_config_internal(cfg: &Config, path: &Path) -> Result<(), Error> {
     let mut f = File::create(path)?;
-    f.write_all(serde_json::to_string(&cfg)?.as_bytes())
+    f.write_all(serde_json::to_string_pretty(&cfg)?.as_bytes())
         .unwrap();
     Ok(())
 }
