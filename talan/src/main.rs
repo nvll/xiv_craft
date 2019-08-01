@@ -2,7 +2,6 @@ mod config;
 mod craft;
 mod gui;
 mod macros;
-//mod role_actions;
 mod task;
 
 use clap::{App, Arg};

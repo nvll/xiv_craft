@@ -12,29 +12,14 @@ const GCD_PADDING: u64 = 150;
 
 // Runs through the set of tasks
 pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
-    // TODO: Role action support
-    // let mut role_actions: [RoleActions; xiv::JOB_CNT]  = [
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    //     RoleActions::new(),
-    // ];
-
     // Get the UI into a state we can trust it, and pray the user doesn't touch it.
-    //ui::clear_window(handle);
+    ui::clear_window(handle);
 
     // Clear role actions before we iterate tasks so the game state
     // and role action state will be in sync.
     let mut job: u32 = 256;
     let mut _gearset: u64 = 0;
     let mut _first_task: bool = true;
-
-    log::info!("vigorously clearing the window");
-    ui::clear_window(handle);
 
     for task in tasks {
         log::trace!("Task: {:?}", task);
@@ -46,14 +31,6 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros:
                 xiv::JOBS[task_job]
             );
         }
-
-        // TODO: Optimize this path so if we craft from the same class and aren't making
-        // collectables then we can work without standing up.
-        // if !first_task && job as usize != task_job {
-        //     // TODO: Stand up so job change can be made
-        //     // Close out of the crafting window and stand up
-        //     // ui::clear_window(handle);
-        // }
 
         // Swap our job if necessary. It may have been used in the previous task.
         if job != task.recipe.job {
@@ -67,9 +44,6 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros:
         if task.is_collectable {
             toggle_collectable(handle);
         }
-
-        // TODO: Role action support
-        // configure_role_actions(handle, &mut role_actions[task_job], &macros[task.macro_id as usize].actions[..]);
 
         // Navigate to the correct recipe based on the index provided
         select_recipe(handle, &task);
@@ -85,21 +59,6 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros:
         }
     }
 }
-
-// fn configure_role_actions(handle: xiv::XivHandle, role_actions: &mut RoleActions, actions: &[Action]) {
-//     for action in actions {
-//         if role_actions.is_role_action(&action.name) {
-//             // A return value that isn't 'None' means we need to add the action in the client
-//             if let Some(r) = role_actions.add_action(&action.name) {
-//                 if let Some(old_action) = r {
-//                     // An inner value is an action we need to remove
-//                     aaction_remove(handle, &old_action);
-//                 }
-//                 aaction_add(handle, &action.name);
-//             }
-//         }
-//     }
-// }
 
 pub fn open_craft_window(handle: xiv::XivHandle) {
     ui::send_key(handle, 'N' as i32);
@@ -240,25 +199,3 @@ pub fn change_gearset(handle: xiv::XivHandle, gearset: i32) {
 pub fn toggle_collectable(handle: xiv::XivHandle) {
     send_action(handle, &"collectable synthesis");
 }
-
-// pub fn aaction(handle: xiv::XivHandle, verb: &str, action: &str) {
-//     ui::press_enter(handle);
-//     if verb == "clear" {
-//         ui::send_action(handle, "/aaction clear", None);
-//     } else {
-//         ui::send_action(handle, &format!("/aaction \"{}\" {}", action, verb), None);
-//     }
-// }
-
-// pub fn aaction_clear(handle: xiv::XivHandle) {
-//     aaction(handle, "clear", "");
-//     ui::wait(1.0)
-// }
-
-// pub fn aaction_add(handle: xiv::XivHandle, action: &str) {
-//     aaction(handle, "on", action)
-// }
-
-// pub fn aaction_remove(handle: xiv::XivHandle, action: &str) {
-//     aaction(handle, "off", action)
-// }
