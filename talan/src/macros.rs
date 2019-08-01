@@ -26,7 +26,7 @@ impl fmt::Display for Action {
 fn parse_buffer(buffer: &str) -> Result<Vec<Action>, Error> {
     let mut actions = vec![];
     for line in buffer.trim().lines() {
-        if line.trim().as_bytes()[0] == '#' as u8 {
+        if line.trim().as_bytes()[0] == b'#' {
             log::info!("skipping commented line: {}", line);
             continue;
         }

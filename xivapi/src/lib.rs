@@ -39,8 +39,13 @@ impl Recipe {
     fn from_results(recipes: Vec<ApiRecipe>, item_name: &str, job: u32) -> Option<Recipe> {
         // Figure
         for (i, recipe) in recipes.iter().enumerate() {
+            // Items like 'Cloud Pearl' also have 'Cloud Pearl Components' in the results,
+            // and can have multiple jobs. If there's more than one job in the results then
+            // we should match on the one requested. But if only result comes back it means
+            // the user had the wrong job selected. For ease of use in that circumstance
+            // we'll just add it to the task list.
             if recipe.Name.to_lowercase() == item_name.to_lowercase()
-                && recipe.CraftType.ID as u32 == job
+                && (recipes.len() == 1 || recipe.CraftType.ID as u32 == job)
             {
                 let mut r = Recipe {
                     id: recipe.ID,
