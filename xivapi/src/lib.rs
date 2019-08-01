@@ -1,12 +1,12 @@
 use failure::Error;
 use log;
 use reqwest;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 const XIVAPI_SEARCH_URL: &str = "https://xivapi.com/search";
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Material {
     pub id: i32,
     pub count: i32,
@@ -14,7 +14,7 @@ pub struct Material {
 }
 
 // Top level structs to export out of the library
-#[derive(Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Recipe {
     pub id: i32,
     pub name: String,

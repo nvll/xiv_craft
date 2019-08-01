@@ -16,7 +16,6 @@ struct UiState {
     search_job: i32,
     macro_labels: Vec<ImString>,
     job_labels: Vec<ImString>,
-    tasks: Vec<Task>,
     tasks_to_remove: Vec<usize>,
     return_tasks: bool,
 }
@@ -29,7 +28,6 @@ impl Default for UiState {
             search_job: 0,
             macro_labels: Vec::new(),
             job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
-            tasks: Vec::new(),
             tasks_to_remove: Vec::new(),
             return_tasks: false,
         }
@@ -56,14 +54,9 @@ fn check_state_values(state: &mut UiState, tasks: &mut Vec<Task>) {
     }
 }
 
-fn draw_ui<'a>(
-    ui: &imgui::Ui<'a>,
-    cfg: &mut config::Config,
-    tasks: &mut Vec<Task>,
-    mut state: &mut UiState,
-) -> bool {
+fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiState) -> bool {
     // Ensure our state is in a good ... state.
-    check_state_values(&mut state, tasks);
+    check_state_values(&mut state, &mut cfg.tasks);
     if state.add_clicked {
         // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
         // add it to our tasks.
@@ -84,7 +77,7 @@ fn draw_ui<'a>(
                         recipe,
                         macro_id: 0,
                     };
-                    tasks.push(task);
+                    cfg.tasks.push(task);
                 }
             }
             Err(e) => println!("Error fetching recipe: {}", e.to_string()),
@@ -131,7 +124,7 @@ fn draw_ui<'a>(
 
             // Both Tasks and their materials are enumerated so we can generate unique
             // UI ids for widgets and prevent any sort of UI clash.
-            for (task_id, task) in &mut tasks.iter_mut().enumerate() {
+            for (task_id, task) in &mut cfg.tasks.iter_mut().enumerate() {
                 ui.push_id(task_id as i32);
                 // header should be closeable
                 let header_name = ImString::new(format!(
@@ -212,12 +205,13 @@ fn draw_ui<'a>(
 
             ui.separator();
             // Only show the craft button if we have tasks added
-            if !tasks.is_empty() && button(ui, "Craft Tasks") {
+            if !cfg.tasks.is_empty() && button(ui, "Craft Tasks") {
+                write_config(cfg);
                 state.return_tasks = true;
             }
         });
     // Right side window
-    ui.window(im_str!("Configuration                      "))
+    ui.window(im_str!("Configuration"))
         .size((CONFIG_W, CONFIG_H), ImGuiCond::FirstUseEver)
         .position((TASK_W + (PADDING_W * 2.0), PADDING_H), ImGuiCond::Always)
         .movable(false)
@@ -265,6 +259,16 @@ fn draw_ui<'a>(
                     }
                 });
             }
+            if ui
+                .collapsing_header(im_str!("Options"))
+                .default_open(true)
+                .build()
+            {
+                ui.checkbox(
+                    im_str!("Reload task list at start"),
+                    &mut cfg.options.reload_tasks,
+                );
+            };
             if ui.small_button(im_str!("Save changes")) && write_config(cfg).is_err() {
                 println!("Error writing config :(")
             }
@@ -274,11 +278,7 @@ fn draw_ui<'a>(
     state.return_tasks
 }
 
-pub fn start(
-    mut cfg: &mut config::Config,
-    tasks: &mut Vec<Task>,
-    macros: &[MacroFile],
-) -> Result<bool, Error> {
+pub fn start(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
     use glium::glutin;
     use glium::{Display, Surface};
     use imgui_glium_renderer::Renderer;
@@ -338,7 +338,7 @@ pub fn start(
         let frame_size = imgui_winit_support::get_frame_size(&window, hidpi_factor).unwrap();
 
         let ui = imgui.frame(frame_size, delta_s);
-        let result = draw_ui(&ui, &mut cfg, tasks, &mut ui_state);
+        let result = draw_ui(&ui, &mut cfg, &mut ui_state);
         if result {
             quit = true;
         }

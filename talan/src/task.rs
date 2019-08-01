@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use xivapi;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct MaterialCount {
     pub nq: i32,
     pub hq: i32,
@@ -10,7 +11,7 @@ pub struct MaterialCount {
 // using a provided recipe and macro. mat_quality is a specific field
 // separate from Recipe because the Recipe type is from an external
 // crate.
-#[derive(Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Task {
     pub quantity: i32,        // number of items to craft
     pub is_collectable: bool, // craft collectables

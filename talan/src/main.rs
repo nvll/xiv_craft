@@ -5,6 +5,7 @@ mod macros;
 mod task;
 
 use clap::{App, Arg};
+use config::write_config;
 use craft::craft_items;
 use failure::Error;
 use simple_logger;
@@ -43,10 +44,16 @@ fn main() -> Result<(), Error> {
     simple_logger::init_with_level(level)?;
 
     let handle = xiv::init(matches.is_present("slow"))?;
-    // Read here, but can be updated by a UI impl.
     let mut cfg = config::read_config();
-    // Any UI implementation will populate this vec.
-    let mut tasks: Vec<Task> = Vec::new();
+    // If we cached any task info but the user doesn't want it
+    // anymore then it needs to be cleared out.
+    if !cfg.options.reload_tasks {
+        cfg.tasks.clear();
+        if write_config(&cfg).is_err() {
+            log::error!("failed to write config");
+        }
+    }
+
     // These are only read at startup.
     let macros = macros::get_macro_list()?;
     log::info!("Scanning macros:");
@@ -62,9 +69,9 @@ fn main() -> Result<(), Error> {
         return debug2_test(handle, &cfg);
     }
 
-    while gui::start(&mut cfg, &mut tasks, &macros)? {
+    while gui::start(&mut cfg, &macros)? {
         std::thread::sleep(std::time::Duration::from_millis(1000));
-        craft_items(handle, &cfg, &tasks[..], &macros[..]);
+        craft_items(handle, &cfg, &macros[..]);
     }
     println!("exiting...");
     Ok(())

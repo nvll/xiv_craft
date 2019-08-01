@@ -11,7 +11,7 @@ use xiv::ui;
 const GCD_PADDING: u64 = 200;
 
 // Runs through the set of tasks
-pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
+pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
     // Get the UI into a state we can trust it, and pray the user doesn't touch it.
     ui::clear_window(handle);
 
@@ -21,7 +21,7 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros:
     let mut _gearset: u64 = 0;
     let mut _first_task: bool = true;
 
-    for task in tasks {
+    for task in &cfg.tasks {
         log::trace!("Task: {:?}", task);
         let task_job: usize = task.recipe.job as usize;
 

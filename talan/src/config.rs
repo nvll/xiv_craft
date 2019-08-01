@@ -1,3 +1,4 @@
+use crate::task::Task;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -5,27 +6,17 @@ use std::io::prelude::*;
 use std::path::Path;
 
 // This module handles all configuration management for Talan.
-
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
-pub struct Delays {
-    pub gcd_buff: f32,
-    pub gcd_action: f32,
-}
-
-impl Default for Delays {
-    fn default() -> Delays {
-        Delays {
-            gcd_buff: 2.0,
-            gcd_action: 2.5,
-        }
-    }
+#[derive(PartialEq, Debug, Serialize, Default, Deserialize)]
+pub struct Options {
+    pub reload_tasks: bool,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     // Stored as i32 because imgui doesn't bind to unsigned ints.
     pub gear: [i32; xiv::JOB_CNT],
-    pub delays: Delays,
+    pub options: Options,
+    pub tasks: Vec<Task>,
 }
 
 const CONFIG_PATH: &str = "config.json";
