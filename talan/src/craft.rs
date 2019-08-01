@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use xiv::ui;
 
 // Milliseconds to pad the GCD to account for latency
-const GCD_PADDING: u64 = 250;
+const GCD_PADDING: u64 = 200;
 
 // Runs through the set of tasks
 pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, tasks: &[Task], macros: &[MacroFile]) {
@@ -136,10 +136,10 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
         // selected with the pointer.
         select_materials(handle, &task);
         ui::press_confirm(handle);
-        ui::wait(1.0);
 
-        // The first action is always immediate.
-        let mut next_action = Instant::now();
+        // The first action is one second off so we start typing while the
+        // crafting window is coming up.
+        let mut next_action = Instant::now() + Duration::from_secs(1);
         let mut prev_action = next_action;
         for action in actions {
             ui::press_enter(handle);
@@ -154,7 +154,7 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
             }
             ui::press_enter(handle);
             // Handle turning a 3.0 wait in traditional macros into something closer to a real GCD
-            let delay = if action.wait == 3 { 2500 } else { 2000 };
+            let delay = if action.wait == 2 { 1500 } else { 2500 };
 
             now = Instant::now();
             log::debug!("action: {} ({:?})", action.name, now - prev_action);
@@ -180,7 +180,7 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
             ui::wait(3.0);
             ui::press_confirm(handle)
         } else {
-            ui::wait(3.5);
+            ui::wait(3.0);
             ui::press_confirm(handle);
         }
     }
