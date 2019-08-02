@@ -37,7 +37,7 @@ Talan is in its first beta, but already has a fairly solid set of features
 - Talan will look in $the current working directory for a directory named `macros` to search for macros.
   If the `macros` directory doesn't exist then you'll experience a crash.
 - Specifying NQ / HQ material counts right now is not honored, all crafts will use any materials available and prioritize NQ.
-- **If you are crafting collectables you must make sure your last action finishes the craft. Additional actions will presently cause the window input to fail. Sim your rotations!
+- **If you are crafting collectables you must make sure your last action finishes the craft. Additional actions will presently cause the window input to fail. Sim your rotations!**
 
 ### Roadmap
 Talan is still under active development with the following roadmap in mind:
