@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use xiv::ui;
 
 // Milliseconds to pad the GCD to account for latency
-const GCD_PADDING: u64 = 200;
+const GCD_PADDING: u64 = 250;
 
 // Runs through the set of tasks
 pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
@@ -144,7 +144,7 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
 
         // The first action is one second off so we start typing while the
         // crafting window is coming up.
-        let mut next_action = Instant::now() + Duration::from_secs(1);
+        let mut next_action = Instant::now() + Duration::from_secs(2);
         let mut prev_action = next_action;
         for action in actions {
             ui::press_enter(handle);
@@ -179,16 +179,16 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
         // At the end of this sequence the cursor should have selected the recipe
         // again and be on the Synthesize button.
         if task.is_collectable {
+            ui::wait(2.0);
+            ui::press_confirm(handle);
             ui::wait(1.0);
             ui::press_confirm(handle);
             // Give the UI a moment
-            ui::wait(3.0);
-            ui::press_confirm(handle)
-        } else {
-            ui::wait(3.0);
-            ui::press_confirm(handle);
         }
+        ui::wait(3.0);
+        ui::press_confirm(handle);
     }
+    ui::wait(2.0);
 }
 
 fn send_action(handle: xiv::XivHandle, action: &str) {

@@ -143,6 +143,11 @@ pub fn clear_window(xiv_handle: super::XivHandle) {
     }
     press_enter(xiv_handle);
 
+    for _ in 0..4 {
+        press_escape(xiv_handle);
+    }
+    press_cancel(xiv_handle);
+
     // Each press of escape clears out one window, or removes the input focus
     for _ in 0..10 {
         press_cancel(xiv_handle);
