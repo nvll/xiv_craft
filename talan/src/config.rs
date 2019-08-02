@@ -15,6 +15,7 @@ pub struct Options {
 pub struct Config {
     // Stored as i32 because imgui doesn't bind to unsigned ints.
     pub gear: [i32; xiv::JOB_CNT],
+    pub non_doh_gear: i32,
     pub options: Options,
     pub tasks: Vec<Task>,
 }

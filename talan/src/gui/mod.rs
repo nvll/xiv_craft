@@ -259,6 +259,15 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                     {
                         cfg.gear[7] = max(cfg.gear[7], 0);
                     }
+                    if ui
+                        .input_int(
+                            im_str!("Non-DoH set (for Collectable safety)"),
+                            &mut cfg.non_doh_gear,
+                        )
+                        .build()
+                    {
+                        cfg.non_doh_gear = max(cfg.non_doh_gear, 0);
+                    }
                 });
             }
             if ui

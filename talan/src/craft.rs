@@ -21,6 +21,11 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
     let mut _gearset: u64 = 0;
     let mut _first_task: bool = true;
 
+    if cfg.non_doh_gear != 0 {
+        change_gearset(handle, cfg.non_doh_gear);
+        ui::wait(1.0);
+    }
+
     for task in &cfg.tasks {
         log::trace!("Task: {:?}", task);
         let task_job: usize = task.recipe.job as usize;
