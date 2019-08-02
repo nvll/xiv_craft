@@ -5,7 +5,7 @@ ventures is a simple bot that will reassign the ventures of specified retainers 
 For best results, open the retainer window and then minimize the game while in windowed mode.
 
 ## Talan: A Crafting Bot
-[![Talan (early alpha) crafting 6x Grade 3 Infusion of Strength](http://img.youtube.com/vi/--hmcNVyhaA/0.jpg)](https://www.youtube.com/watch?v=--hmcNVyhaA)
+[![Talan (beta 2 candidate) crafting 5x Metal Gauntlets for the Crystalarium](http://i3.ytimg.com/vi/neSoWRJTPfE/maxresdefault.jpg)](https://www.youtube.com/watch?v=neSoWRJTPfE)
 
 ### Overview
 Talan is a crafting bot designed for max level crafters. Rather than trying to be a crafting
