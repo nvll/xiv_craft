@@ -11,6 +11,16 @@ pub fn wait(s: f32) {
     sleep(Duration::from_millis(ms));
 }
 
+// Delay for WM_CHAR events. In testing, even with low fps or
+// higher latency this value is still safe because of the game's
+// input buffer.
+const CHAR_DELAY: f32 = 0.05;
+// Delay for window navigation sent via KEYDOWN / KEYUP events.
+// These are affect by latency and in testing 150 milliseconds
+// seems safe in laggier conditions.
+const UI_DELAY: f32 = 0.05;
+const UI_DELAY_SLOW: f32 = 0.15;
+
 #[cfg(windows)]
 mod constants {
     use winapi::um::winuser::*;
@@ -163,22 +173,18 @@ pub fn send_char(xiv_handle: super::XivHandle, c: char) {
     log::trace!("char: {}", c);
     send_msg(xiv_handle, constants::MSG_KEY_CHAR, c as i32);
     // TODO: Redo this when we have a better timing system
-    let mut wait_s = 0.05;
-    if xiv_handle.slow_mode {
-        wait_s += 0.1;
-    }
-    wait(wait_s);
+    wait(CHAR_DELAY);
 }
 
 pub fn send_key(xiv_handle: super::XivHandle, c: i32) {
     log::trace!("key {:x}", c);
     send_msg(xiv_handle, constants::MSG_KEY_DOWN, c);
     send_msg(xiv_handle, constants::MSG_KEY_UP, c);
-    let mut wait_s = 0.05;
-    if xiv_handle.slow_mode {
-        wait_s += 0.1;
+    if xiv_handle.use_slow_navigation {
+        wait(UI_DELAY_SLOW);
+    } else {
+        wait(UI_DELAY);
     }
-    wait(wait_s);
 }
 
 // Send a character/key to the XIV window

@@ -279,6 +279,20 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                     im_str!("Reload task list at start"),
                     &mut cfg.options.reload_tasks,
                 );
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(
+                        "Tasks will be saved when tasks are started, or the config is saved",
+                    );
+                }
+                ui.checkbox(
+                    im_str!("Use slower menu navigation"),
+                    &mut cfg.options.use_slow_navigation,
+                );
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(
+                        "Use this option if you have a lower (<30) fps or high latency",
+                    );
+                }
             };
             if ui.small_button(im_str!("Save changes")) && write_config(cfg).is_err() {
                 println!("Error writing config :(")

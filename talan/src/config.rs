@@ -6,17 +6,31 @@ use std::io::prelude::*;
 use std::path::Path;
 
 // This module handles all configuration management for Talan.
-#[derive(PartialEq, Debug, Serialize, Default, Deserialize)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct Options {
     pub reload_tasks: bool,
+    pub use_slow_navigation: bool,
+}
+
+impl Default for Options {
+    fn default() -> Options {
+        Options {
+            reload_tasks: true,
+            use_slow_navigation: false,
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     // Stored as i32 because imgui doesn't bind to unsigned ints.
+    #[serde(default)]
     pub gear: [i32; xiv::JOB_CNT],
+    #[serde(default)]
     pub non_doh_gear: i32,
+    #[serde(default)]
     pub options: Options,
+    #[serde(default)]
     pub tasks: Vec<Task>,
 }
 

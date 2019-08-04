@@ -54,7 +54,7 @@ fn main() -> Result<(), Error> {
     if matches.occurrences_of("delay") > 0 {
         delay_m = value_t!(matches.value_of("delay"), u64).unwrap_or_else(|e| e.exit());
     }
-    let h = xiv::init(false)?;
+    let h = xiv::init()?;
 
     loop {
         let mut now = Local::now();

@@ -23,7 +23,7 @@ pub const JOBS: [&str; JOB_CNT] = ["CRP", "BSM", "ARM", "GSM", "LTW", "WVR", "AL
 pub struct XivHandle {
     #[cfg(windows)]
     hwnd: HWND, // The handle passed back by the winapi
-    slow_mode: bool, // Add more delay to XIV navigation
+    pub use_slow_navigation: bool, // Add more delay to XIV navigation
 }
 
 impl fmt::Debug for XivHandle {
@@ -38,7 +38,7 @@ impl fmt::Debug for XivHandle {
 }
 
 #[cfg(windows)]
-pub fn init(slow_mode: bool) -> Result<XivHandle, Error> {
+pub fn init() -> Result<XivHandle, Error> {
     let mut arg = std::ptr::null_mut();
     unsafe {
         // TODO: Figure out Rust error handling rather than just panicking inside a lib
@@ -46,7 +46,7 @@ pub fn init(slow_mode: bool) -> Result<XivHandle, Error> {
         match EnumWindows(Some(enum_callback), &mut arg as *mut HWND as LONG_PTR) {
             0 => Ok(XivHandle {
                 hwnd: arg as HWND,
-                slow_mode,
+                use_slow_navigation: false,
             }),
             _ => Err(format_err!(
                 "{}",
@@ -57,9 +57,11 @@ pub fn init(slow_mode: bool) -> Result<XivHandle, Error> {
 }
 
 #[cfg(not(windows))]
-pub fn init(slow_mode: bool) -> Result<XivHandle, Error> {
-    log::info!("Stub XIV lib in use.");
-    Ok(XivHandle { slow_mode })
+pub fn init() -> Result<XivHandle, Error> {
+    log::info!("Stub XIV lib in use!");
+    Ok(XivHandle {
+        use_slow_navigation: false,
+    })
 }
 
 // This callback is called for every window the user32 EnumWindows call finds

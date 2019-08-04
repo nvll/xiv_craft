@@ -43,8 +43,6 @@ fn main() -> Result<(), Error> {
 
     simple_logger::init_with_level(level)?;
 
-    let handle = xiv::init(matches.is_present("slow"))?;
-
     // These are only read at startup.
     let macros = macros::get_macro_list()?;
     log::info!("Scanning macros:");
@@ -70,6 +68,7 @@ fn main() -> Result<(), Error> {
         }
     }
 
+    let mut handle = xiv::init()?;
     if matches.subcommand_matches("debug1").is_some() {
         return debug1_test(handle, &cfg);
     }
@@ -79,7 +78,8 @@ fn main() -> Result<(), Error> {
     }
 
     while gui::start(&mut cfg, &macros)? {
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        // Sync the handle with any config changes that happened in the gui
+        handle.use_slow_navigation = cfg.options.use_slow_navigation;
         craft_items(handle, &cfg, &macros[..]);
     }
     println!("exiting...");
