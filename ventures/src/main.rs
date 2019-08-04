@@ -25,10 +25,15 @@ fn main() -> Result<(), Error> {
                 )),
         )
         .arg(
+            Arg::with_name("slower")
+                .short("s")
+                .help("Use slower UI navgiation (for higher latency or lower FPS systems"),
+        )
+        .arg(
             Arg::with_name("delay")
                 .short("d")
                 .takes_value(true)
-                .help("The number of minutes to wait before starting."),
+                .help("The number of minutes to wait before checking retainers the first time"),
         )
         .get_matches();
 
@@ -54,7 +59,9 @@ fn main() -> Result<(), Error> {
     if matches.occurrences_of("delay") > 0 {
         delay_m = value_t!(matches.value_of("delay"), u64).unwrap_or_else(|e| e.exit());
     }
-    let h = xiv::init()?;
+
+    let mut h = xiv::init()?;
+    h.use_slow_navigation = matches.is_present("slower");
 
     loop {
         let mut now = Local::now();
