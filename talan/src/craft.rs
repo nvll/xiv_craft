@@ -41,6 +41,11 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
         if job != task.recipe.job {
             log::trace!("changing job to {}.", xiv::JOBS[task_job]);
             change_gearset(handle, cfg.gear[task_job]);
+            // If we don't wait here we might bring the window up before
+            // the job has changed, leading to the wrong class seeding the
+            // window's mode.
+            ui::wait(1.0);
+
             job = task.recipe.job
         } else {
             log::trace!("already {}, no need to change job.", xiv::JOBS[task_job]);
@@ -102,7 +107,7 @@ pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
 }
 
 pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
-    log::info!("selecting materials...");
+    log::trace!("selecting materials");
     ui::cursor_up(handle);
     // TODO implement HQ > NQ
     ui::cursor_right(handle);
@@ -183,9 +188,9 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
             ui::press_confirm(handle);
             ui::wait(1.0);
             ui::press_confirm(handle);
-            // Give the UI a moment
         }
-        ui::wait(3.0);
+        // Give the UI a moment before pressing confirm to highlight the recipe again
+        ui::wait(2.0);
         ui::press_confirm(handle);
     }
     ui::wait(2.0);
@@ -201,6 +206,7 @@ pub fn change_gearset(handle: xiv::XivHandle, gearset: i32) {
     log::info!("changing to gearset {}", gearset);
     ui::press_enter(handle);
     ui::send_string(handle, &format!("/gearset change {}", gearset));
+    ui::wait(0.5);
     ui::press_enter(handle);
 }
 
