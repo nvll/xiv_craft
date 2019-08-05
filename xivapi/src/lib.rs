@@ -207,7 +207,6 @@ mod test {
         log::trace!("item fetched: {:#?}", item);
         assert_eq!(item.Name, "Rakshasa Axe");
         assert_eq!(item.CraftType.ID, 1);
-        assert_eq!(item.CanHq, 1);
         assert_eq!(item.AmountIngredient0, 3);
         assert_eq!(item.AmountIngredient1, 1);
         assert_eq!(item.AmountIngredient2, 1);

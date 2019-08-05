@@ -124,84 +124,8 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
 
             // Both Tasks and their materials are enumerated so we can generate unique
             // UI ids for widgets and prevent any sort of UI clash.
-            for (task_id, task) in &mut cfg.tasks.iter_mut().enumerate() {
-                ui.push_id(task_id as i32);
-                // header should be closeable
-                let header_name = ImString::new(format!(
-                    "[{}] {}x {} {}",
-                    xiv::JOBS[task.recipe.job as usize],
-                    task.quantity,
-                    task.recipe.name.clone(),
-                    if task.is_collectable {
-                        "(Collectable)"
-                    } else {
-                        ""
-                    }
-                ));
-                if ui
-                    .collapsing_header(&header_name)
-                    .default_open(true)
-                    .build()
-                {
-                    ui.checkbox(
-                        im_str!("Use materials of any quality"),
-                        &mut task.ignore_mat_quality,
-                    );
-                    for (i, (mat, qual)) in task
-                        .recipe
-                        .mats
-                        .iter()
-                        .zip(task.mat_quality.iter_mut())
-                        .enumerate()
-                    {
-                        ui.push_id(i as i32);
-                        if task.ignore_mat_quality {
-                            // Create a quick label string for the material
-                            ui.text(format!("{}x {}", mat.count, mat.name));
-                        } else {
-                            // Otherwise we need to convert some numerical values to strings,
-                            // then feed them into the widgets. This seems like it should
-                            // thrash like crazy, but thankfully it's 2019 and processors
-                            // are fast?
-                            let mut nq_imstr = ImString::new(qual.nq.to_string());
-                            ui.text(&ImString::new(mat.name.clone()));
-                            ui.with_item_width(25.0, || {
-                                ui.input_text(im_str!("NQ"), &mut nq_imstr)
-                                    .flags(ImGuiInputTextFlags::ReadOnly)
-                                    .build();
-                            });
-                            ui.same_line(0.0);
-                            ui.with_item_width(75.0, || {
-                                // Use a temp to deal with imgui only allowing i32
-                                let mut hq: i32 = qual.hq as i32;
-                                if ui.input_int(im_str!("HQ"), &mut hq).build() {
-                                    qual.hq = min(max(0, hq as u32), mat.count);
-                                    qual.nq = mat.count - qual.hq;
-                                }
-                            });
-                        }
-                        ui.pop_id();
-                    }
-
-                    ui.with_item_width(75.0, || {
-                        if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
-                            task.quantity = max(1, task.quantity);
-                        }
-                        ui.same_line(0.0);
-                        ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-                    });
-                    support::combobox(
-                        ui,
-                        im_str!("Macro"),
-                        &state.macro_labels,
-                        &mut task.macro_id,
-                    );
-
-                    if support::button(ui, "Delete Task") {
-                        state.tasks_to_remove.push(task_id);
-                    }
-                }
-                ui.pop_id();
+            for (task_id, mut task) in &mut cfg.tasks.iter_mut().enumerate() {
+                draw_task(&ui, &mut state, task_id, &mut task);
             }
 
             ui.separator();
@@ -302,6 +226,88 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
 
     // Return if we're supposed to
     state.return_tasks
+}
+
+fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: &mut Task) {
+    ui.push_id(task_id as i32);
+    // header should be closeable
+    let header_name = ImString::new(format!(
+        "[{}] {}x {} {}",
+        xiv::JOBS[task.recipe.job as usize],
+        task.quantity,
+        task.recipe.name.clone(),
+        if task.is_collectable {
+            "(Collectable)"
+        } else {
+            ""
+        }
+    ));
+    if ui
+        .collapsing_header(&header_name)
+        .default_open(true)
+        .build()
+    {
+        ui.checkbox(
+            im_str!("Use materials of any quality"),
+            &mut task.ignore_mat_quality,
+        );
+
+        // Draw material widgets, or just the checkbox if checked.
+        for (i, (mat, qual)) in task
+            .recipe
+            .mats
+            .iter()
+            .zip(task.mat_quality.iter_mut())
+            .enumerate()
+        {
+            ui.push_id(i as i32);
+            if task.ignore_mat_quality {
+                // Create a quick label string for the material
+                ui.text(format!("{}x {}", mat.count, mat.name));
+            } else {
+                // Otherwise we need to convert some numerical values to strings,
+                // then feed them into the widgets. This seems like it should
+                // thrash like crazy, but thankfully it's 2019 and processors
+                // are fast?
+                let mut nq_imstr = ImString::new(qual.nq.to_string());
+                ui.text(&ImString::new(mat.name.clone()));
+                ui.with_item_width(25.0, || {
+                    ui.input_text(im_str!("NQ"), &mut nq_imstr)
+                        .flags(ImGuiInputTextFlags::ReadOnly)
+                        .build();
+                });
+                ui.same_line(0.0);
+                ui.with_item_width(75.0, || {
+                    // Use a temp to deal with imgui only allowing i32
+                    let mut hq: i32 = qual.hq as i32;
+                    if ui.input_int(im_str!("HQ"), &mut hq).build() {
+                        qual.hq = min(max(0, hq as u32), mat.count);
+                        qual.nq = mat.count - qual.hq;
+                    }
+                });
+            }
+            ui.pop_id();
+        }
+
+        ui.with_item_width(75.0, || {
+            if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
+                task.quantity = max(1, task.quantity);
+            }
+            ui.same_line(0.0);
+            ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
+        });
+        support::combobox(
+            ui,
+            im_str!("Macro"),
+            &state.macro_labels,
+            &mut task.macro_id,
+        );
+
+        if support::button(ui, "Delete Task") {
+            state.tasks_to_remove.push(task_id);
+        }
+    }
+    ui.pop_id();
 }
 
 pub fn start(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
