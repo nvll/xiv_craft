@@ -232,8 +232,9 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
     ui.push_id(task_id as i32);
     // header should be closeable
     let header_name = ImString::new(format!(
-        "[{}] {}x {} {}",
+        "[{} {}] {}x {} {}",
         xiv::JOBS[task.recipe.job as usize],
+        task.recipe.level,
         task.quantity,
         task.recipe.name.clone(),
         if task.is_collectable {
@@ -247,6 +248,10 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
         .default_open(true)
         .build()
     {
+        ui.text(format!(
+            "{} Durability  {} Difficulty  {} Quality",
+            task.recipe.durability, task.recipe.difficulty, task.recipe.quality
+        ));
         ui.checkbox(
             im_str!("Use materials of any quality"),
             &mut task.ignore_mat_quality,
