@@ -8,23 +8,26 @@ const XIVAPI_SEARCH_URL: &str = "https://xivapi.com/search";
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Material {
-    pub id: i32,
-    pub count: i32,
+    pub id: u32,
+    pub count: u32,
     pub name: String,
 }
 
 // Top level structs to export out of the library
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Recipe {
-    pub id: i32,
-    pub name: String,
-    pub can_hq: bool,
-    pub job: u32,
+    pub durability: u32,
+    pub difficulty: u32,
+    pub quality: u32,
+    pub level: u32,
+    pub id: u32,
     pub index: usize,
+    pub job: u32,
     pub mats: Vec<Material>,
+    pub name: String,
 }
 
-fn convert_ingredient(r: &mut Recipe, ii: &Option<ItemIngredient>, amount: i32) {
+fn convert_ingredient(r: &mut Recipe, ii: &Option<ItemIngredient>, amount: u32) {
     if let Some(ref ii) = ii {
         r.mats.push(Material {
             id: ii.ID,
@@ -48,9 +51,14 @@ impl Recipe {
                 && (recipes.len() == 1 || recipe.CraftType.ID as u32 == job)
             {
                 let mut r = Recipe {
+                    level: recipe.RecipeLevelTable.ClassJobLevel,
+                    durability: (recipe.RecipeLevelTable.Durability * recipe.DurabilityFactor)
+                        / 100,
+                    difficulty: (recipe.RecipeLevelTable.Difficulty * recipe.DifficultyFactor)
+                        / 100,
+                    quality: (recipe.RecipeLevelTable.Quality * recipe.QualityFactor) / 100,
                     id: recipe.ID,
                     name: recipe.Name.clone(),
-                    can_hq: recipe.CanHq != 0,
                     job: recipe.CraftType.ID as u32,
                     index: i,
                     mats: Vec::new(),
@@ -72,29 +80,45 @@ impl Recipe {
 #[derive(Clone, Debug, Deserialize)]
 struct ItemIngredient {
     Name: String,
-    ID: i32,
+    ID: u32,
 }
 
 // These structures match the XIVApi schemas
 #[allow(non_snake_case)]
 #[derive(Clone, Debug, Deserialize)]
 struct CraftType {
-    ID: i32,
+    ID: u32,
+}
+
+#[allow(non_snake_case)]
+#[derive(Clone, Debug, Deserialize)]
+struct RecipeLevelTable {
+    ClassJobLevel: u32,
+    Difficulty: u32,
+    Durability: u32,
+    ID: u32,
+    Quality: u32,
+    Stars: u32,
+    SuggestedControl: u32,
+    SuggestedCraftsmanship: u32,
 }
 
 #[allow(non_snake_case)]
 #[derive(Clone, Debug, Deserialize)]
 pub struct ApiRecipe {
-    ID: i32,
+    ID: u32,
     Name: String,
-    CanHq: i32,
     CraftType: CraftType,
-    AmountIngredient0: i32,
-    AmountIngredient1: i32,
-    AmountIngredient2: i32,
-    AmountIngredient3: i32,
-    AmountIngredient4: i32,
-    AmountIngredient5: i32,
+    RecipeLevelTable: RecipeLevelTable,
+    AmountIngredient0: u32,
+    AmountIngredient1: u32,
+    AmountIngredient2: u32,
+    AmountIngredient3: u32,
+    AmountIngredient4: u32,
+    AmountIngredient5: u32,
+    DifficultyFactor: u32,
+    DurabilityFactor: u32,
+    QualityFactor: u32,
     ItemIngredient0: Option<ItemIngredient>,
     ItemIngredient1: Option<ItemIngredient>,
     ItemIngredient2: Option<ItemIngredient>,
@@ -115,15 +139,33 @@ struct ApiReply<T> {
 
 pub fn query_recipe_by_name(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
     log::trace!("Looking up '{}'", item_name);
-    let mut columns = String::new() + "ID,Name,CanHq,CraftType.ID";
-    for i in 0..=5 {
-        columns += format!(",AmountIngredient{},ItemIngredient{}", i, i).as_str();
-    }
+    let columns = [
+        "AmountIngredient0",
+        "AmountIngredient1",
+        "AmountIngredient2",
+        "AmountIngredient3",
+        "AmountIngredient4",
+        "AmountIngredient5",
+        "CraftType.ID",
+        "DifficultyFactor",
+        "DurabilityFactor",
+        "ID",
+        "ItemIngredient0",
+        "ItemIngredient1",
+        "ItemIngredient2",
+        "ItemIngredient3",
+        "ItemIngredient4",
+        "ItemIngredient5",
+        "Name",
+        "QualityFactor",
+        "RecipeLevelTable",
+    ];
+    let s: String = columns.iter().map(|e| e.to_string() + ",").collect();
     let body = reqwest::Client::new()
         .get(XIVAPI_SEARCH_URL)
         .query(&[
             ("indexes", "Recipe"),
-            ("columns", columns.as_str()),
+            ("columns", &s),
             ("string", item_name),
             ("string_algo", "term"),
             ("sort_field", "ID"), // XIV sorts recipe output in game by ID of item in the recipe list

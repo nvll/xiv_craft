@@ -172,9 +172,10 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                             });
                             ui.same_line(0.0);
                             ui.with_item_width(75.0, || {
-                                if ui.input_int(im_str!("HQ"), &mut qual.hq).build() {
-                                    // Adjust NQ as necessary, and bound by [0, COUNT]
-                                    qual.hq = min(max(0, qual.hq), mat.count);
+                                // Use a temp to deal with imgui only allowing i32
+                                let mut hq: i32 = qual.hq as i32;
+                                if ui.input_int(im_str!("HQ"), &mut hq).build() {
+                                    qual.hq = min(max(0, hq as u32), mat.count);
                                     qual.nq = mat.count - qual.hq;
                                 }
                             });
