@@ -92,7 +92,7 @@ fn debug1_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error
             quantity: 1,
             is_collectable: false,
             recipe,
-            ignore_mat_quality: true,
+            use_any_mats: true,
             mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
             macro_id: 0,
         };
@@ -109,7 +109,7 @@ fn debug2_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error
             quantity: 1,
             is_collectable: false,
             recipe,
-            ignore_mat_quality: true,
+            use_any_mats: true,
             mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
             macro_id: 0,
         };

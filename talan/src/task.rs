@@ -13,7 +13,7 @@ pub struct MaterialCount {
 // crate.
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Task {
-    pub ignore_mat_quality: bool,
+    pub use_any_mats: bool,
     pub is_collectable: bool, // craft collectables
     pub macro_id: i32,
     pub mat_quality: Vec<MaterialCount>,

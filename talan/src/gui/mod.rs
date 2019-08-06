@@ -79,7 +79,7 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                     let task = Task {
                         quantity: 1,
                         is_collectable: false,
-                        ignore_mat_quality: true,
+                        use_any_mats: true,
                         // Initialize the material qualities to be NQ for everything
                         mat_quality: recipe
                             .mats
@@ -264,7 +264,7 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
         ));
         ui.checkbox(
             im_str!("Use materials of any quality"),
-            &mut task.ignore_mat_quality,
+            &mut task.use_any_mats,
         );
 
         // Draw material widgets, or just the checkbox if checked.
@@ -276,7 +276,7 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
             .enumerate()
         {
             ui.push_id(i as i32);
-            if task.ignore_mat_quality {
+            if task.use_any_mats {
                 // Create a quick label string for the material
                 ui.text(format!("{}x {}", mat.count, mat.name));
             } else {

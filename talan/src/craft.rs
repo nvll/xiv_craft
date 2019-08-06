@@ -107,7 +107,14 @@ pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
 }
 
 pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
-    log::trace!("selecting materials");
+    if !task.use_any_mats {
+        // If there are no HQ mats we can fast path this by just
+        // starting the synthesis.
+        if task.mat_quality.iter().fold(0, |acc, &mat| acc + mat.hq) == 0 {
+            return;
+        }
+    }
+
     ui::cursor_up(handle);
     // TODO implement HQ > NQ
     ui::cursor_right(handle);
