@@ -3,11 +3,8 @@ use crate::config::{self, write_config};
 use crate::macros::MacroFile;
 use crate::task::{MaterialCount, Task};
 use failure::Error;
-use imgui::{im_str, ImGui, ImGuiCond, ImGuiInputTextFlags, ImString};
-use imgui_winit_support;
+use imgui::{im_str, Condition, ImGuiInputTextFlags, ImString};
 use std::cmp::{max, min};
-use std::time::Instant;
-use support::button;
 
 #[derive(Debug)]
 struct UiState {
@@ -34,15 +31,6 @@ impl Default for UiState {
     }
 }
 
-const TASK_W: f32 = 400.0;
-const TASK_H: f32 = 600.0;
-const CONFIG_W: f32 = TASK_W;
-const CONFIG_H: f32 = TASK_H;
-const PADDING_W: f32 = 10.0;
-const PADDING_H: f32 = 10.0;
-const TOTAL_WIDTH: f32 = TASK_W + CONFIG_W + (PADDING_W * 3.0);
-const TOTAL_HEIGHT: f32 = TASK_H + (PADDING_H * 2.0);
-
 fn check_state_values(state: &mut UiState, tasks: &mut Vec<Task>) {
     // Due to borrow semantics, deferring the task remove to outside the iterator
     // borrow is necessary.
@@ -52,6 +40,30 @@ fn check_state_values(state: &mut UiState, tasks: &mut Vec<Task>) {
         }
         state.tasks_to_remove.clear();
     }
+}
+
+const TASK_W: f32 = 400.0;
+const TASK_H: f32 = 600.0;
+const CONFIG_W: f32 = TASK_W;
+const CONFIG_H: f32 = TASK_H;
+const PADDING_W: f32 = 10.0;
+const PADDING_H: f32 = 10.0;
+
+pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
+    // Cache these rather than run them in the main loop.
+    let mut ui_state = UiState::default();
+    for m in macros {
+        ui_state.macro_labels.push(ImString::new(m.name.clone()));
+    }
+
+    let system = support::init("Talan");
+    system.main_loop(|run, ui| {
+        if draw_ui(&ui, &mut cfg, &mut ui_state) {
+            *run = false;
+        }
+    });
+
+    Ok(true)
 }
 
 fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiState) -> bool {
@@ -88,25 +100,22 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
 
     // Left side window
     ui.window(im_str!("Talan"))
-        .size((TASK_W, TASK_H), ImGuiCond::Always)
-        .position((PADDING_W, PADDING_H), ImGuiCond::FirstUseEver)
+        .size([TASK_W, TASK_H], Condition::Always)
+        .position([PADDING_W, PADDING_H], Condition::FirstUseEver)
         .resizable(false)
         .movable(false)
         .collapsible(false)
         .build(|| {
             // Jobs for the combo box. Can't be constant due to unknown size at compile time.
-            ui.with_item_width(60.0, || {
-                support::combobox(
-                    &ui,
-                    im_str!("Job"),
-                    &state.job_labels,
-                    &mut state.search_job,
-                );
-            });
+            {
+                let _width = ui.push_item_width(60.0);
+                support::combobox(ui, im_str!("Job"), &mut state.search_job, &state.job_labels);
+            }
             ui.same_line(0.0);
             // Both pressing enter in the item textbox and pressing the add button should
             // register a recipe lookup.
-            ui.with_item_width(200.0, || {
+            {
+                let _width = ui.push_item_width(200.0);
                 if ui
                     .input_text(im_str!("Item"), &mut state.search_str)
                     .flags(
@@ -117,10 +126,10 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                     state.add_clicked = true;
                 }
                 ui.same_line(0.0);
-                if ui.button(im_str!("Add"), (0.0, 0.0)) {
+                if ui.button(im_str!("Add"), [0.0, 0.0]) {
                     state.add_clicked = true;
                 }
-            });
+            }
 
             // Both Tasks and their materials are enumerated so we can generate unique
             // UI ids for widgets and prevent any sort of UI clash.
@@ -130,7 +139,7 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
 
             ui.separator();
             // Only show the craft button if we have tasks added
-            if !cfg.tasks.is_empty() && button(ui, "Craft Tasks") {
+            if !cfg.tasks.is_empty() && ui.button(im_str!("Craft Tasks"), [0.0, 0.0]) {
                 if write_config(cfg).is_err() {
                     log::error!("failed to write config");
                 }
@@ -139,8 +148,8 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
         });
     // Right side window
     ui.window(im_str!("Configuration"))
-        .size((CONFIG_W, CONFIG_H), ImGuiCond::FirstUseEver)
-        .position((TASK_W + (PADDING_W * 2.0), PADDING_H), ImGuiCond::Always)
+        .size([CONFIG_W, CONFIG_H], Condition::FirstUseEver)
+        .position([TASK_W + (PADDING_W * 2.0), PADDING_H], Condition::Always)
         .movable(false)
         .collapsible(false)
         .resizable(false)
@@ -150,7 +159,8 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                 .default_open(true)
                 .build()
             {
-                ui.with_item_width(70.0, || {
+                {
+                    let _width = ui.push_item_width(70.0);
                     if ui.input_int(im_str!("Carpenter"), &mut cfg.gear[0]).build() {
                         cfg.gear[0] = max(cfg.gear[0], 0);
                     }
@@ -193,7 +203,7 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
                     {
                         cfg.non_doh_gear = max(cfg.non_doh_gear, 0);
                     }
-                });
+                }
             }
             if ui
                 .collapsing_header(im_str!("Options"))
@@ -224,7 +234,7 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
             }
         });
 
-    // Return if we're supposed to
+    // If we return a |true| value the main_loop will know to bail out and start crafting.
     state.return_tasks
 }
 
@@ -276,118 +286,43 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
                 // are fast?
                 let mut nq_imstr = ImString::new(qual.nq.to_string());
                 ui.text(&ImString::new(mat.name.clone()));
-                ui.with_item_width(25.0, || {
+                {
+                    let _width = ui.push_item_width(25.0);
                     ui.input_text(im_str!("NQ"), &mut nq_imstr)
                         .flags(ImGuiInputTextFlags::ReadOnly)
                         .build();
-                });
+                };
                 ui.same_line(0.0);
-                ui.with_item_width(75.0, || {
+                {
+                    let _width = ui.push_item_width(75.0);
                     // Use a temp to deal with imgui only allowing i32
                     let mut hq: i32 = qual.hq as i32;
                     if ui.input_int(im_str!("HQ"), &mut hq).build() {
                         qual.hq = min(max(0, hq as u32), mat.count);
                         qual.nq = mat.count - qual.hq;
                     }
-                });
+                };
             }
             ui.pop_id();
         }
-
-        ui.with_item_width(75.0, || {
+        {
+            let _width = ui.push_item_width(75.0);
             if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
                 task.quantity = max(1, task.quantity);
             }
             ui.same_line(0.0);
             ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-        });
+        };
         support::combobox(
             ui,
             im_str!("Macro"),
-            &state.macro_labels,
             &mut task.macro_id,
+            &state.macro_labels,
         );
 
-        if support::button(ui, "Delete Task") {
+        if ui.button(im_str!("Delete Task"), [0.0, 0.0]) {
             state.tasks_to_remove.push(task_id);
         }
     }
     ui.pop_id();
-}
-
-pub fn start(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
-    use glium::glutin;
-    use glium::{Display, Surface};
-    use imgui_glium_renderer::Renderer;
-
-    let mut events_loop = glutin::EventsLoop::new();
-    let context = glutin::ContextBuilder::new().with_vsync(true);
-    let builder = glutin::WindowBuilder::new()
-        .with_title("Talan")
-        .with_dimensions(glutin::dpi::LogicalSize::new(
-            f64::from(TOTAL_WIDTH),
-            f64::from(TOTAL_HEIGHT),
-        ));
-    let display = Display::new(builder, context, &events_loop).unwrap();
-    let window = display.gl_window();
-    let hidpi_factor = window.get_hidpi_factor().round();
-
-    let mut imgui = ImGui::init();
-    imgui.set_ini_filename(None); // Without this, imgui will save a .ini in PWD
-    support::set_style(&mut imgui);
-    support::set_fonts(&mut imgui, hidpi_factor);
-
-    let mut renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
-    imgui_winit_support::configure_keys(&mut imgui);
-    let mut last_frame = Instant::now();
-    let mut quit = false;
-
-    // Our initial state is the default for the gui, along with the macros we find while
-    // scanning.
-    let mut ui_state = UiState::default();
-    for m in macros {
-        ui_state.macro_labels.push(ImString::new(m.name.clone()));
-    }
-
-    loop {
-        events_loop.poll_events(|event| {
-            use glium::glutin::{Event, WindowEvent::CloseRequested};
-
-            imgui_winit_support::handle_event(
-                &mut imgui,
-                &event,
-                window.get_hidpi_factor(),
-                hidpi_factor,
-            );
-
-            if let Event::WindowEvent { event, .. } = event {
-                if event == CloseRequested {
-                    quit = true;
-                }
-            }
-        });
-
-        let now = Instant::now();
-        let delta = now - last_frame;
-        let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
-        last_frame = now;
-
-        let frame_size = imgui_winit_support::get_frame_size(&window, hidpi_factor).unwrap();
-
-        let ui = imgui.frame(frame_size, delta_s);
-        let result = draw_ui(&ui, &mut cfg, &mut ui_state);
-        if result {
-            quit = true;
-        }
-
-        let mut target = display.draw();
-        target.clear_color(1.0, 1.0, 1.0, 1.0);
-        if !quit {
-            renderer.render(&mut target, ui).expect("Rendering failed");
-        }
-        target.finish().unwrap();
-        if quit {
-            return Ok(result);
-        }
-    }
 }

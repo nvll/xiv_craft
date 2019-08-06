@@ -77,7 +77,7 @@ fn main() -> Result<(), Error> {
         return debug2_test(handle, &cfg);
     }
 
-    while gui::start(&mut cfg, &macros)? {
+    while gui::init(&mut cfg, &macros)? {
         // Sync the handle with any config changes that happened in the gui
         handle.use_slow_navigation = cfg.options.use_slow_navigation;
         craft_items(handle, &cfg, &macros[..]);

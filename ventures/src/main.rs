@@ -55,10 +55,11 @@ fn main() -> Result<(), Error> {
         retainers
     );
 
-    let mut delay_m: u64 = 0;
-    if matches.occurrences_of("delay") > 0 {
-        delay_m = value_t!(matches.value_of("delay"), u64).unwrap_or_else(|e| e.exit());
-    }
+    let mut delay_m = if matches.occurrences_of("delay") > 0 {
+        value_t!(matches.value_of("delay"), u64).unwrap_or_else(|e| e.exit())
+    } else {
+        0
+    };
 
     let mut h = xiv::init()?;
     h.use_slow_navigation = matches.is_present("slower");

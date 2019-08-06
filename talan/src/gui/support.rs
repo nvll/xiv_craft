@@ -1,39 +1,141 @@
-use imgui::{FontGlyphRange, ImFontConfig, ImGuiCol, ImStr, ImString, ImVec4};
+use glium::glutin::{self, Event, WindowEvent};
+use glium::{Display, Surface};
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, ImStr, ImString, StyleColor, Ui};
+use imgui_glium_renderer::Renderer;
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use std::time::Instant;
 
+pub struct System {
+    pub events_loop: glutin::EventsLoop,
+    pub display: glium::Display,
+    pub imgui: Context,
+    pub platform: WinitPlatform,
+    pub renderer: Renderer,
+    pub font_size: f32,
+}
+
+// This method is copied from Imgui-rs's v0.1.0 example support code
+// with the following modifications:
+// - clipboard support was removed.
+// - Talan's visual style is configured.
+// - Font was changed.
+pub fn init(title: &str) -> System {
+    let title = match title.rfind('/') {
+        Some(idx) => title.split_at(idx + 1).1,
+        None => title,
+    };
+    let events_loop = glutin::EventsLoop::new();
+    let context = glutin::ContextBuilder::new().with_vsync(true);
+    let builder = glutin::WindowBuilder::new()
+        .with_title(title.to_owned())
+        .with_dimensions(glutin::dpi::LogicalSize::new(1024f64, 768f64));
+    let display =
+        Display::new(builder, context, &events_loop).expect("Failed to initialize display");
+
+    let mut imgui = Context::create();
+    imgui.set_ini_filename(None);
+
+    let mut platform = WinitPlatform::init(&mut imgui);
+    {
+        let gl_window = display.gl_window();
+        let window = gl_window.window();
+        platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
+    }
+
+    let hidpi_factor = platform.hidpi_factor();
+    let font_size = (13.0 * hidpi_factor) as f32;
+    imgui.fonts().add_font(&[
+        FontSource::TtfData {
+            data: include_bytes!("DroidSans.ttf"),
+            size_pixels: font_size,
+            config: Some(FontConfig {
+                rasterizer_multiply: 1.75,
+                glyph_ranges: FontGlyphRanges::japanese(),
+                ..FontConfig::default()
+            }),
+        },
+        FontSource::DefaultFontData {
+            config: Some(FontConfig {
+                size_pixels: font_size,
+                ..FontConfig::default()
+            }),
+        },
+    ]);
+
+    imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
+    set_talan_style(imgui.style_mut());
+
+    let renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
+
+    System {
+        events_loop,
+        display,
+        imgui,
+        platform,
+        renderer,
+        font_size,
+    }
+}
+
+impl System {
+    pub fn main_loop<F: FnMut(&mut bool, &mut Ui)>(self, mut run_ui: F) {
+        let System {
+            mut events_loop,
+            display,
+            mut imgui,
+            mut platform,
+            mut renderer,
+            ..
+        } = self;
+        let gl_window = display.gl_window();
+        let window = gl_window.window();
+        let mut last_frame = Instant::now();
+        let mut run = true;
+
+        while run {
+            events_loop.poll_events(|event| {
+                platform.handle_event(imgui.io_mut(), &window, &event);
+
+                if let Event::WindowEvent { event, .. } = event {
+                    if let WindowEvent::CloseRequested = event {
+                        run = false;
+                    }
+                }
+            });
+
+            let io = imgui.io_mut();
+            platform
+                .prepare_frame(io, &window)
+                .expect("Failed to start frame");
+            last_frame = io.update_delta_time(last_frame);
+            let mut ui = imgui.frame();
+            run_ui(&mut run, &mut ui);
+
+            let mut target = display.draw();
+            target.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
+            platform.prepare_render(&ui, &window);
+            let draw_data = ui.render();
+            renderer
+                .render(&mut target, draw_data)
+                .expect("Rendering failed");
+            target.finish().expect("Failed to swap buffers");
+        }
+    }
+}
 // Combo boxes are annoying because I need slices of &ImStr, and I can't easily do that
 // at compile time. This helper function takes a vector of ImStrings and handles the
 // conversion to an appropriate slice.
 pub fn combobox<'a>(
     ui: &imgui::Ui<'a>,
     label: &ImStr,
-    items: &[ImString],
     mut pos: &mut i32,
+    items: &[ImString],
 ) -> bool {
     let im_items: Vec<&ImStr> = items.iter().map(|l| l.as_ref()).collect();
     ui.combo(label, &mut pos, &im_items[..], im_items.len() as i32)
 }
 
-pub fn button<'a>(ui: &imgui::Ui<'a>, label: &str) -> bool {
-    let im_label = ImString::new(label);
-    ui.button(&im_label, (0.0, 0.0))
-}
-
-pub fn set_fonts(imgui: &mut imgui::ImGui, hidpi_factor: f64) {
-    const FONT_SIZE: f64 = 16.0;
-    let font_size = (FONT_SIZE * hidpi_factor) as f32;
-    imgui.fonts().add_font_with_config(
-        include_bytes!("DroidSans.ttf"),
-        ImFontConfig::new()
-            .oversample_h(1)
-            .pixel_snap_h(true)
-            .size_pixels(font_size),
-        &FontGlyphRange::default(),
-    );
-    imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
-}
-
-pub fn set_style(imgui: &mut imgui::ImGui) {
-    let mut style = imgui.style_mut();
+pub fn set_talan_style(style: &mut imgui::Style) {
     // Set all windows / widgets to rectangles
     style.child_rounding = 0.0;
     style.popup_rounding = 0.0;
@@ -42,257 +144,48 @@ pub fn set_style(imgui: &mut imgui::ImGui) {
     style.frame_border_size = 1.0;
 
     // This style is adapted from the light style in imgui_draw.cpp
-    style.colors[ImGuiCol::Text as usize] = ImVec4 {
-        x: 0.00,
-        y: 0.00,
-        z: 0.00,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::TextDisabled as usize] = ImVec4 {
-        x: 1.60,
-        y: 1.60,
-        z: 0.60,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::WindowBg as usize] = ImVec4 {
-        x: 0.94,
-        y: 0.94,
-        z: 0.94,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::ChildBg as usize] = ImVec4 {
-        x: 0.00,
-        y: 0.00,
-        z: 0.00,
-        w: 0.00,
-    };
-    style.colors[ImGuiCol::PopupBg as usize] = ImVec4 {
-        x: 1.00,
-        y: 1.00,
-        z: 1.00,
-        w: 0.98,
-    };
-    style.colors[ImGuiCol::Border as usize] = ImVec4 {
-        x: 0.00,
-        y: 0.00,
-        z: 0.00,
-        w: 0.30,
-    };
-    style.colors[ImGuiCol::BorderShadow as usize] = ImVec4 {
-        x: 0.00,
-        y: 0.00,
-        z: 0.00,
-        w: 0.00,
-    };
-    style.colors[ImGuiCol::FrameBg as usize] = ImVec4 {
-        x: 1.00,
-        y: 1.00,
-        z: 1.00,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::FrameBgHovered as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.40,
-    };
-    style.colors[ImGuiCol::FrameBgActive as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.67,
-    };
-    style.colors[ImGuiCol::TitleBg as usize] = ImVec4 {
-        x: 0.96,
-        y: 0.96,
-        z: 0.96,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::TitleBgActive as usize] = ImVec4 {
-        x: 0.82,
-        y: 0.82,
-        z: 0.82,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::TitleBgCollapsed as usize] = ImVec4 {
-        x: 1.00,
-        y: 1.00,
-        z: 1.00,
-        w: 0.51,
-    };
-    style.colors[ImGuiCol::MenuBarBg as usize] = ImVec4 {
-        x: 0.86,
-        y: 0.86,
-        z: 0.86,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::ScrollbarBg as usize] = ImVec4 {
-        x: 0.98,
-        y: 0.98,
-        z: 0.98,
-        w: 0.53,
-    };
-    style.colors[ImGuiCol::ScrollbarGrab as usize] = ImVec4 {
-        x: 0.69,
-        y: 0.69,
-        z: 0.69,
-        w: 0.80,
-    };
-    style.colors[ImGuiCol::ScrollbarGrabHovered as usize] = ImVec4 {
-        x: 0.49,
-        y: 0.49,
-        z: 0.49,
-        w: 0.80,
-    };
-    style.colors[ImGuiCol::ScrollbarGrabActive as usize] = ImVec4 {
-        x: 0.49,
-        y: 0.49,
-        z: 0.49,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::CheckMark as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::SliderGrab as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.78,
-    };
-    style.colors[ImGuiCol::SliderGrabActive as usize] = ImVec4 {
-        x: 0.46,
-        y: 0.54,
-        z: 0.80,
-        w: 0.60,
-    };
-    style.colors[ImGuiCol::Button as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.40,
-    };
-    style.colors[ImGuiCol::ButtonHovered as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::ButtonActive as usize] = ImVec4 {
-        x: 0.06,
-        y: 0.53,
-        z: 0.98,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::Header as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.31,
-    };
-    style.colors[ImGuiCol::HeaderHovered as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.80,
-    };
-    style.colors[ImGuiCol::HeaderActive as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::Separator as usize] = ImVec4 {
-        x: 0.39,
-        y: 0.39,
-        z: 0.39,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::SeparatorHovered as usize] = ImVec4 {
-        x: 0.14,
-        y: 0.44,
-        z: 0.80,
-        w: 0.78,
-    };
-    style.colors[ImGuiCol::SeparatorActive as usize] = ImVec4 {
-        x: 0.14,
-        y: 0.44,
-        z: 0.80,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::ResizeGrip as usize] = ImVec4 {
-        x: 0.80,
-        y: 0.80,
-        z: 0.80,
-        w: 0.56,
-    };
-    style.colors[ImGuiCol::ResizeGripHovered as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.67,
-    };
-    style.colors[ImGuiCol::ResizeGripActive as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.95,
-    };
-    style.colors[ImGuiCol::PlotLines as usize] = ImVec4 {
-        x: 0.39,
-        y: 0.39,
-        z: 0.39,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::PlotLinesHovered as usize] = ImVec4 {
-        x: 1.00,
-        y: 0.43,
-        z: 0.35,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::PlotHistogram as usize] = ImVec4 {
-        x: 0.90,
-        y: 0.70,
-        z: 0.00,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::PlotHistogramHovered as usize] = ImVec4 {
-        x: 1.00,
-        y: 0.45,
-        z: 0.00,
-        w: 1.00,
-    };
-    style.colors[ImGuiCol::TextSelectedBg as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.35,
-    };
-    style.colors[ImGuiCol::DragDropTarget as usize] = ImVec4 {
-        x: 0.26,
-        y: 0.59,
-        z: 0.98,
-        w: 0.95,
-    };
-    style.colors[ImGuiCol::NavHighlight as usize] = style.colors[ImGuiCol::HeaderHovered as usize];
-    style.colors[ImGuiCol::NavWindowingHighlight as usize] = ImVec4 {
-        x: 0.70,
-        y: 0.70,
-        z: 0.70,
-        w: 0.70,
-    };
-    style.colors[ImGuiCol::NavWindowingDimBg as usize] = ImVec4 {
-        x: 0.20,
-        y: 0.20,
-        z: 0.20,
-        w: 0.20,
-    };
-    style.colors[ImGuiCol::ModalWindowDimBg as usize] = ImVec4 {
-        x: 0.20,
-        y: 0.20,
-        z: 0.20,
-        w: 0.35,
-    };
+    style.colors[StyleColor::Text as usize] = [0.00, 0.00, 0.00, 1.00];
+    style.colors[StyleColor::TextDisabled as usize] = [1.60, 1.60, 0.60, 1.00];
+    style.colors[StyleColor::WindowBg as usize] = [0.94, 0.94, 0.94, 1.00];
+    style.colors[StyleColor::ChildBg as usize] = [0.00, 0.00, 0.00, 0.00];
+    style.colors[StyleColor::PopupBg as usize] = [1.00, 1.00, 1.00, 0.98];
+    style.colors[StyleColor::Border as usize] = [0.00, 0.00, 0.00, 0.30];
+    style.colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
+    style.colors[StyleColor::FrameBg as usize] = [1.00, 1.00, 1.00, 1.00];
+    style.colors[StyleColor::FrameBgHovered as usize] = [0.26, 0.59, 0.98, 0.40];
+    style.colors[StyleColor::FrameBgActive as usize] = [0.26, 0.59, 0.98, 0.67];
+    style.colors[StyleColor::TitleBg as usize] = [0.96, 0.96, 0.96, 1.00];
+    style.colors[StyleColor::TitleBgActive as usize] = [0.82, 0.82, 0.82, 1.00];
+    style.colors[StyleColor::TitleBgCollapsed as usize] = [1.00, 1.00, 1.00, 0.51];
+    style.colors[StyleColor::MenuBarBg as usize] = [0.86, 0.86, 0.86, 1.00];
+    style.colors[StyleColor::ScrollbarBg as usize] = [0.98, 0.98, 0.98, 0.53];
+    style.colors[StyleColor::ScrollbarGrab as usize] = [0.69, 0.69, 0.69, 0.80];
+    style.colors[StyleColor::ScrollbarGrabHovered as usize] = [0.49, 0.49, 0.49, 0.80];
+    style.colors[StyleColor::ScrollbarGrabActive as usize] = [0.49, 0.49, 0.49, 1.00];
+    style.colors[StyleColor::CheckMark as usize] = [0.26, 0.59, 0.98, 1.00];
+    style.colors[StyleColor::SliderGrab as usize] = [0.26, 0.59, 0.98, 0.78];
+    style.colors[StyleColor::SliderGrabActive as usize] = [0.46, 0.54, 0.80, 0.60];
+    style.colors[StyleColor::Button as usize] = [0.26, 0.59, 0.98, 0.40];
+    style.colors[StyleColor::ButtonHovered as usize] = [0.26, 0.59, 0.98, 1.00];
+    style.colors[StyleColor::ButtonActive as usize] = [0.06, 0.53, 0.98, 1.00];
+    style.colors[StyleColor::Header as usize] = [0.26, 0.59, 0.98, 0.31];
+    style.colors[StyleColor::HeaderHovered as usize] = [0.26, 0.59, 0.98, 0.80];
+    style.colors[StyleColor::HeaderActive as usize] = [0.26, 0.59, 0.98, 1.00];
+    style.colors[StyleColor::Separator as usize] = [0.39, 0.39, 0.39, 1.00];
+    style.colors[StyleColor::SeparatorHovered as usize] = [0.14, 0.44, 0.80, 0.78];
+    style.colors[StyleColor::SeparatorActive as usize] = [0.14, 0.44, 0.80, 1.00];
+    style.colors[StyleColor::ResizeGrip as usize] = [0.80, 0.80, 0.80, 0.56];
+    style.colors[StyleColor::ResizeGripHovered as usize] = [0.26, 0.59, 0.98, 0.67];
+    style.colors[StyleColor::ResizeGripActive as usize] = [0.26, 0.59, 0.98, 0.95];
+    style.colors[StyleColor::PlotLines as usize] = [0.39, 0.39, 0.39, 1.00];
+    style.colors[StyleColor::PlotLinesHovered as usize] = [1.00, 0.43, 0.35, 1.00];
+    style.colors[StyleColor::PlotHistogram as usize] = [0.90, 0.70, 0.00, 1.00];
+    style.colors[StyleColor::PlotHistogramHovered as usize] = [1.00, 0.45, 0.00, 1.00];
+    style.colors[StyleColor::TextSelectedBg as usize] = [0.26, 0.59, 0.98, 0.35];
+    style.colors[StyleColor::DragDropTarget as usize] = [0.26, 0.59, 0.98, 0.95];
+    style.colors[StyleColor::NavHighlight as usize] =
+        style.colors[StyleColor::HeaderHovered as usize];
+    style.colors[StyleColor::NavWindowingHighlight as usize] = [0.70, 0.70, 0.70, 0.70];
+    style.colors[StyleColor::NavWindowingDimBg as usize] = [0.20, 0.20, 0.20, 0.20];
+    style.colors[StyleColor::ModalWindowDimBg as usize] = [0.20, 0.20, 0.20, 0.35];
 }
