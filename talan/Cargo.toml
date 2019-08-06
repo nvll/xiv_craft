@@ -2,7 +2,7 @@
 authors = ["Christopher Anderson <chris@nullcode.org>"]
 edition = "2018"
 name = "talan"
-version = "0.5.0"
+version = "0.2.0"
 
 [dependencies]
 failure = "0.1.2"
