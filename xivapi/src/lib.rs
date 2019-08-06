@@ -1,8 +1,10 @@
-use failure::Error;
+use failure::{format_err, Error};
 use log;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 const XIVAPI_SEARCH_URL: &str = "https://xivapi.com/search";
 
@@ -105,6 +107,12 @@ struct RecipeLevelTable {
 
 #[allow(non_snake_case)]
 #[derive(Clone, Debug, Deserialize)]
+pub struct GameContentLinks {
+    RecipeNotebookList: HashMap<String, Vec<u32>>,
+}
+
+#[allow(non_snake_case)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ApiRecipe {
     ID: u32,
     Name: String,
@@ -125,6 +133,77 @@ pub struct ApiRecipe {
     ItemIngredient3: Option<ItemIngredient>,
     ItemIngredient4: Option<ItemIngredient>,
     ItemIngredient5: Option<ItemIngredient>,
+    GameContentLinks: Option<GameContentLinks>,
+}
+
+impl ApiRecipe {
+    // Through experimentation, the game appears to sort recipes based on
+    // the following keys in priority order:
+    //   1) Job ID (CRP < BSM < ARM < GSM < LTW < WVR < ALC < CUL)
+    //   2) Craft Level
+    //   3) Craft Stars
+    //   4) RecipeNotebookList Row
+    //   4) RecipeNotebookList Column
+    fn key(&self) -> Result<(u32, u32, u32, u32, u32), Error> {
+        let links = self
+            .GameContentLinks
+            .clone()
+            .ok_or(format_err!("No GameContentLinks"))?;
+
+        // RecipeNotebookList is organized into rows and columns. Below
+        // represents column 9 in row 1053.
+        //
+        //  GameContentLinks {
+        //     RecipeNotebookList: {
+        //         "Recipe9": [
+        //             1053,
+        //         ],
+        //     },
+        // },
+
+        let column_str = links.RecipeNotebookList.keys().collect::<Vec<_>>()[0];
+        let column = column_str.trim_start_matches("Recipe").parse::<u32>()?;
+
+        let row = links
+            .RecipeNotebookList
+            .get(column_str)
+            .ok_or(format_err!("Can't get column {}", column_str))?[0];
+
+        Ok((
+            self.CraftType.ID,
+            self.RecipeLevelTable.ClassJobLevel,
+            self.RecipeLevelTable.Stars,
+            row,
+            column,
+        ))
+    }
+}
+
+impl PartialEq for ApiRecipe {
+    fn eq(&self, other: &Self) -> bool {
+        self.ID == other.ID
+    }
+}
+
+impl Eq for ApiRecipe {}
+
+impl Ord for ApiRecipe {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if let Some(ord) = self.partial_cmp(other) {
+            ord
+        } else {
+            // Fall back on comparing ID if partial_cmp fails.
+            self.CraftType.ID.cmp(&other.CraftType.ID)
+        }
+    }
+}
+
+impl PartialOrd for ApiRecipe {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let self_key = self.key().ok()?;
+        let other_key = other.key().ok()?;
+        Some(self_key.cmp(&other_key))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,6 +238,7 @@ pub fn query_recipe_by_name(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
         "Name",
         "QualityFactor",
         "RecipeLevelTable",
+        "GameContentLinks",
     ];
     let s: String = columns.iter().map(|e| e.to_string() + ",").collect();
     let body = reqwest::Client::new()
@@ -167,12 +247,12 @@ pub fn query_recipe_by_name(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
             ("indexes", "Recipe"),
             ("columns", &s),
             ("string", item_name),
-            ("sort_field", "ID"), // XIV sorts recipe output in game by ID of item in the recipe list
             ("pretty", "1"),
         ])
         .send()?
         .text()?;
-    let r: ApiReply<ApiRecipe> = serde_json::from_str(&body)?;
+    let mut r: ApiReply<ApiRecipe> = serde_json::from_str(&body)?;
+    r.Results.sort();
     log::trace!("{:#?}", r.Results);
     Ok(r.Results)
 }
@@ -212,6 +292,89 @@ mod test {
         assert_eq!(item.AmountIngredient3, 3);
         assert_eq!(item.AmountIngredient4, 0);
         assert_eq!(item.AmountIngredient5, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn triphane_test() -> Result<(), Error> {
+        setup();
+
+        let api_results = query_recipe_by_name("Triphane")?;
+        let item = &api_results[0];
+        log::trace!("item fetched: {:#?}", item);
+        assert_eq!(item.Name, "Triphane");
+        Ok(())
+    }
+
+    #[test]
+    fn swallowskin_gloves_test() -> Result<(), Error> {
+        setup();
+
+        let names = vec![
+            "Swallowskin Gloves of Fending",
+            "Swallowskin Gloves of Maiming",
+            "Swallowskin Gloves of Striking",
+            "Swallowskin Gloves of Scouting",
+            "Swallowskin Gloves of Aiming",
+            "Swallowskin Gloves of Casting",
+            "Swallowskin Gloves of Healing",
+            "Swallowskin Gloves",
+        ];
+
+        let api_results = query_recipe_by_name("Swallowskin Gloves")?;
+
+        log::trace!("results: {:#?}", api_results);
+        assert_eq!(api_results.len(), names.len());
+        for (i, recipe) in api_results.iter().enumerate() {
+            assert_eq!(recipe.Name, names[i]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn gloves_of_aiming_test() -> Result<(), Error> {
+        setup();
+
+        let names = vec![
+            "Saurian Gloves of Aiming",
+            "Archaeoskin Gloves of Aiming",
+            "Dragonskin Gloves of Aiming",
+            "Griffin Leather Gloves of Aiming",
+            "Sky Pirate's Gloves of Aiming",
+            "Replica High Allagan Gloves of Aiming",
+            "Sky Rat Fingerless Gloves of Aiming",
+            "Hemiskin Gloves of Aiming",
+            "Gaganaskin Gloves of Aiming",
+            "Gyuki Leather Gloves of Aiming",
+            "Tigerskin Gloves of Aiming",
+            "Marid Leather Gloves of Aiming",
+            "Slothskin Gloves of Aiming",
+            "Gliderskin Gloves of Aiming",
+            "Zonureskin Fingerless Gloves of Aiming",
+            "Swallowskin Gloves of Aiming",
+            "Brightlinen Long Gloves of Aiming",
+            "Facet Halfgloves of Aiming",
+        ];
+
+        let api_results = query_recipe_by_name("gloves of aiming")?;
+
+        log::trace!("results: {:#?}", api_results);
+        assert_eq!(api_results.len(), names.len());
+        for (i, recipe) in api_results.iter().enumerate() {
+            assert_eq!(recipe.Name, names[i]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bsm_cloud_pearl_test() -> Result<(), Error> {
+        setup();
+
+        // 1 == WVR.  We hard code it here to avoid a dependency on xiv.
+        let r = get_recipe_for_job("cloud pearl", 1)?.ok_or(format_err!("Query returned None"))?;
+        assert_eq!(r.name, "Cloud Pearl");
+        assert_eq!(r.index, 3);
+
         Ok(())
     }
 }
