@@ -1,174 +1,257 @@
-use chrono::{Local, Timelike};
-use clap::{value_t, App, Arg};
 use failure::Error;
+use simple_logger;
 use std::thread;
+use std::time::{Duration, Instant};
+use structopt;
+use structopt::StructOpt;
 use xiv;
 use xiv::ui;
 
-fn sleep(s: u64) {
-    thread::sleep(std::time::Duration::from_secs(s));
+#[derive(Debug, StructOpt)]
+#[structopt(name = "ventures", about = "A FFXIV venture automation helper")]
+struct Opts {
+    /// Use slower menu navigation for slower or laggier systems
+    #[structopt(short = "s", long = "slow")]
+    use_slow_navigation: bool,
+
+    /// The index of retainers to send on ventures.
+    /// Retainers can be specified by ranges denoted by a hyphen, or individuals
+    /// separated by commas. Ranges must be low to high.
+    ///
+    /// e.g. the following are the same:
+    ///
+    ///   --retainers 1-4
+    ///   --retainers 1,2,3-4
+    ///   --retainers 1,2,3,4
+    #[structopt(short = "r", long = "retainers")]
+    retainers: String,
+
+    /// By default, Paissa assumes all retainers have just been sent out and will
+    /// check them when the one with the shortest venture length finishes. This delay
+    /// allows you to adjust the first time it checks all the retainers. For instance,
+    /// if you sent all the retainers out 5 minutes ago you could use -t 5 to indicate
+    /// retainers should be checked five minutes earlier.
+    #[structopt(short = "t", long = "time_passed")]
+    time_passed: Option<u64>,
+
+    /// How many minutes a retainer's ventures take to complete (default:60)
+    #[structopt(short = "1")]
+    r1_period: Option<u64>,
+    #[structopt(short = "2")]
+    r2_period: Option<u64>,
+    #[structopt(short = "3")]
+    r3_period: Option<u64>,
+    #[structopt(short = "4")]
+    r4_period: Option<u64>,
+    #[structopt(short = "5")]
+    r5_period: Option<u64>,
+    #[structopt(short = "6")]
+    r6_period: Option<u64>,
+    #[structopt(short = "7")]
+    r7_period: Option<u64>,
+    #[structopt(short = "8")]
+    r8_period: Option<u64>,
+
+    /// Enable log levels.
+    #[structopt(short = "v", parse(from_occurrences))]
+    verbose: u64,
 }
 
-const VERSION: &str = "1.0";
-fn main() -> Result<(), Error> {
-    let matches = App::new("Ventures")
-        .version(VERSION)
-        .arg(
-            Arg::with_name("retainers")
-                .short("r")
-                .takes_value(true)
-                .required(true)
-                .help(concat!(
-                    "The retainers to automate.",
-                    "Comma separators and ranges are accepted.\n",
-                    "e.g. -r 1-4 or -r 1,3,4-5"
-                )),
-        )
-        .arg(
-            Arg::with_name("slower")
-                .short("s")
-                .help("Use slower UI navgiation (for higher latency or lower FPS systems"),
-        )
-        .arg(
-            Arg::with_name("delay")
-                .short("d")
-                .takes_value(true)
-                .help("The number of minutes to wait before checking retainers the first time"),
-        )
-        .get_matches();
+#[derive(Debug)]
+struct Retainer {
+    id: u64,
+    period: Duration,
+    next: Instant,
+}
 
-    // Figure out retainer ranges by parsing out , and -
-    let mut retainers: Vec<u32> = Vec::new();
-    for hunk in matches.value_of("retainers").unwrap().split(',') {
-        let v: Vec<u32> = hunk.split('-').map(|s| s.parse::<u32>().unwrap()).collect();
-        retainers.push(v[0]);
+impl Retainer {
+    fn new(id: u64, args: &Opts) -> Retainer {
+        let period = Duration::from_secs(retainer_id_to_period(id, args) * 60);
+        Retainer {
+            id,
+            period,
+            next: Instant::now() + period,
+        }
+    }
+}
+
+const DEFAULT_PERIOD: u64 = 60;
+
+// TODO: This whole method could just be a simple macro?
+#[rustfmt::skip]
+fn retainer_id_to_period(id: u64, args: &Opts) -> u64 {
+    match id {
+        1 => args.r1_period.unwrap_or(DEFAULT_PERIOD),
+        2 => args.r2_period.unwrap_or(DEFAULT_PERIOD),
+        3 => args.r3_period.unwrap_or(DEFAULT_PERIOD),
+        4 => args.r4_period.unwrap_or(DEFAULT_PERIOD),
+        5 => args.r5_period.unwrap_or(DEFAULT_PERIOD),
+        6 => args.r6_period.unwrap_or(DEFAULT_PERIOD),
+        7 => args.r7_period.unwrap_or(DEFAULT_PERIOD),
+        8 => args.r8_period.unwrap_or(DEFAULT_PERIOD),
+        _ => panic!("Unknown ID"),
+    }
+}
+
+fn parse_arguments() -> Result<(xiv::XivHandle, Vec<Retainer>), Error> {
+    let args = Opts::from_args();
+    simple_logger::init_with_level(match args.verbose {
+        1 => log::Level::Debug,
+        2 => log::Level::Trace,
+        _ => log::Level::Info,
+    })?;
+
+    // Parse a mix of ranges specified by X-Y or separated by commas X,Y,Z
+    let mut retainers: Vec<Retainer> = Vec::new();
+    for hunk in args.retainers.split(',') {
+        let v: Vec<u64> = hunk.split('-').map(|s| s.parse::<u64>().unwrap()).collect();
+        retainers.push(Retainer::new(v[0], &args));
         if v.len() == 2 {
             for i in v[0] + 1..=v[1] {
-                retainers.push(i)
+                retainers.push(Retainer::new(i, &args));
             }
         }
     }
 
-    println!(
-        "Reassigning ventures for retainer{} {:?}",
-        if retainers.len() > 1 { "s" } else { "" },
-        retainers
-    );
+    if let Some(t) = args.time_passed {
+        log::info!(
+            "Adjusting all retainer initial completion times to be {}m earlier",
+            t
+        );
 
-    let mut delay_m = if matches.occurrences_of("delay") > 0 {
-        value_t!(matches.value_of("delay"), u64).unwrap_or_else(|e| e.exit())
-    } else {
-        0
-    };
+        for r in &mut retainers {
+            r.next -= Duration::from_secs(t * 60);
+        }
+    }
+
+    retainers.sort_by_key(|r| r.id);
+    for r in &retainers {
+        log::info!("retainer {} every {}m", r.id, r.period.as_secs() / 60);
+    }
 
     let mut h = xiv::init()?;
-    h.use_slow_navigation = matches.is_present("slower");
+    h.use_slow_navigation = args.use_slow_navigation;
 
+    Ok((h, retainers))
+}
+
+fn main() -> Result<(), Error> {
+    let (hnd, mut retainers) = parse_arguments()?;
+
+    // Who knows what state the UI will be in
+    ui::clear_window(hnd);
+    // Open the retainer menu initially to keep from being logged out while AFK.
+    open_retainer_menu(hnd);
     loop {
-        let mut now = Local::now();
-        if delay_m > 0 {
-            println!(
-                "[{:02}:{:02}:{:02}] Waiting {} minutes before checking retainers",
-                now.hour(),
-                now.minute(),
-                now.second(),
-                delay_m
+        // Figure out who the first retainer to be finished is and sleep until then.
+        retainers.sort_by_key(|r| r.next);
+        for r in &retainers {
+            let nd = r.next - Instant::now();
+            log::debug!(
+                "Retainer {{ id: {}, period: {}, next: {}m{}s }}",
+                r.id,
+                r.period.as_secs() / 60,
+                nd.as_secs() / 60,
+                nd.as_secs() % 60
             );
-            // Open the menu initially because we likely want to keep the player from
-            // being logged out due to the 30 minute afk timer.
-            open_retainer_menu(h);
-            sleep(delay_m * 60);
-            delay_m = 0;
+        }
+
+        if retainers[0].next > Instant::now() {
+            let sleep_duration = retainers[0].next - Instant::now();
+            log::info!(
+                "Retainer {} is next in {}m{}s.",
+                retainers[0].id,
+                sleep_duration.as_secs() / 60,
+                sleep_duration.as_secs() % 60
+            );
+            thread::sleep(sleep_duration);
         }
 
         // Always re-open the menu to ensure the state is consistent. This is
         // important because if the user does anything in the intervening time,
         // even simple things like tabbing to the game and out again, it may
         // change the input state and throw all our inputs off by one.
-        open_retainer_menu(h);
-        for r in &retainers {
-            reassign_venture(h, *r);
+        open_retainer_menu(hnd);
+        // Run any retainer that finished and update their next venture deadline.
+        for r in &mut retainers {
+            if r.next < Instant::now() {
+                log::info!("re-assigning retainer {}'s venture", r.id);
+                reassign_venture(hnd, r.id);
+                log::debug!("retainer {} done", r.id);
+                // Base the delay to the next venture by when we finish navigating
+                // the menus. We could speed this up by 20-30 seconds, but when we're
+                // working with 40-60 minute deltas it's better to be safe.
+                r.next = Instant::now() + r.period;
+            }
         }
-
-        now = Local::now();
-        let next = now + chrono::Duration::minutes(60);
-        println!(
-            "[{:02}:{:02}:{:02}] Run finished. Next is at {:02}:{:02}:{:02}",
-            now.hour(),
-            now.minute(),
-            now.second(),
-            next.hour(),
-            next.minute(),
-            next.second(),
-        );
-        sleep(60 * 60); // 60 minutes
     }
 }
 
-fn open_retainer_menu(h: xiv::XivHandle) {
+fn open_retainer_menu(hnd: xiv::XivHandle) {
+    log::debug!("open_retainer_menu");
     // This will close the game menu if open and exit the retainer window if
     // it was open from a previous run.
-    ui::press_escape(h);
-    ui::press_escape(h);
-    ui::press_cancel(h);
-    ui::press_cancel(h);
-    sleep(2);
+    ui::press_escape(hnd);
+    ui::press_escape(hnd);
+    ui::press_cancel(hnd);
+    ui::press_cancel(hnd);
+    ui::wait(2.0);
 
     // The reason the menu is opened twice is because we want to clear out any
     // mouse actions the UI registered that would lead to us not having the input
     // cursor up when the retainer menu opens.
-    ui::target_nearest_npc(h);
-    sleep(1);
-    ui::press_confirm(h);
-    sleep(2);
-    ui::press_cancel(h);
-    ui::press_cancel(h);
-    ui::target_nearest_npc(h);
-    sleep(1);
-    ui::press_confirm(h);
-    sleep(2);
+    ui::target_nearest_npc(hnd);
+    ui::wait(1.0);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
+    ui::press_cancel(hnd);
+    ui::press_cancel(hnd);
+    ui::target_nearest_npc(hnd);
+    ui::wait(1.0);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
 }
 
 // General usability rules
 // 1. Wait 1 second after moving around in a menu
 // 2. Wait 2 seconds after pressing a button for UI changes / Feo Ul / Retainer dialog.
-fn reassign_venture(h: xiv::XivHandle, r_id: u32) {
-    println!("Selecting Retainer #{}", r_id);
+fn reassign_venture(hnd: xiv::XivHandle, r_id: u64) {
+    log::debug!("reassign_venture(r_id: {})", r_id);
     for _ in 0..r_id - 1 {
-        ui::cursor_down(h);
+        ui::cursor_down(hnd);
     }
-    sleep(1);
-    ui::press_confirm(h);
-    sleep(2);
-    ui::press_confirm(h);
-    sleep(2);
+    ui::wait(1.0);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
     // Move down to Assign Venture / View Venture Progress
     for _ in 0..5 {
-        ui::cursor_down(h);
+        ui::cursor_down(hnd);
     }
-    sleep(1);
+    ui::wait(1.0);
     // Select the menu option
-    ui::press_confirm(h);
-    sleep(2);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
     // Move left to 'Reassign'
-    ui::cursor_left(h);
-    sleep(1);
+    ui::cursor_left(hnd);
+    ui::wait(1.0);
     // Confirm 'Reassign'
-    ui::press_confirm(h);
-    sleep(2);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
     // Move left to 'Assign' in the venture window that comes up
-    ui::cursor_left(h);
-    sleep(1);
+    ui::cursor_left(hnd);
+    ui::wait(1.0);
     // Confirm 'Assign'
-    ui::press_confirm(h);
-    sleep(2);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
     // Confirm the message from the retainer about the venture
-    ui::press_confirm(h);
-    sleep(2);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
     // Escape out of the specific retainer's menu
-    ui::press_cancel(h);
-    sleep(2);
+    ui::press_cancel(hnd);
+    ui::wait(2.0);
     // Say goodbye to the retainer
-    ui::press_confirm(h);
-    sleep(2);
+    ui::press_confirm(hnd);
+    ui::wait(2.0);
 }
