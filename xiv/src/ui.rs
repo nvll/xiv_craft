@@ -12,10 +12,10 @@ use std::time::Duration;
 // input buffer.
 const CHAR_DELAY: f32 = 0.05;
 // Delay for window navigation sent via KEYDOWN / KEYUP events.
-// These are affect by latency and in testing 150 milliseconds
+// These are affected by latency and in testing 200 milliseconds
 // seems safe in laggier conditions.
-const UI_DELAY: f32 = 0.05;
-const UI_DELAY_SLOW: f32 = 0.15;
+const UI_DELAY: f32 = 0.1;
+const UI_DELAY_SLOW: f32 = 0.2;
 
 #[cfg(windows)]
 mod constants {
