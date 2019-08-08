@@ -167,7 +167,6 @@ pub fn query_recipe_by_name(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
             ("indexes", "Recipe"),
             ("columns", &s),
             ("string", item_name),
-            ("string_algo", "term"),
             ("sort_field", "ID"), // XIV sorts recipe output in game by ID of item in the recipe list
             ("pretty", "1"),
         ])
