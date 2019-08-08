@@ -1,0 +1,11 @@
+[package]
+name = "gui_support"
+version = "0.1.0"
+authors = ["Christopher Anderson <chris@nullcode.org>"]
+edition = "2018"
+
+[dependencies]
+imgui = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
+imgui-glium-renderer = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
+imgui-winit-support = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
+glium = "0.25.1"

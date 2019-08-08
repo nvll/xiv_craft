@@ -1,8 +1,8 @@
-mod support;
 use crate::config::{self, write_config};
 use crate::macros::MacroFile;
 use crate::task::{MaterialCount, Task};
 use failure::Error;
+use gui_support;
 use imgui::{im_str, Condition, ImGuiInputTextFlags, ImString};
 use std::cmp::{max, min};
 
@@ -56,7 +56,7 @@ pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, 
         ui_state.macro_labels.push(ImString::new(m.name.clone()));
     }
 
-    let system = support::init("Talan");
+    let system = gui_support::init("Talan");
     system.main_loop(|run, ui| {
         if draw_ui(&ui, &mut cfg, &mut ui_state) {
             *run = false;
@@ -109,7 +109,7 @@ fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiS
             // Jobs for the combo box. Can't be constant due to unknown size at compile time.
             {
                 let _width = ui.push_item_width(60.0);
-                support::combobox(ui, im_str!("Job"), &mut state.search_job, &state.job_labels);
+                gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &state.job_labels);
             }
             ui.same_line(0.0);
             // Both pressing enter in the item textbox and pressing the add button should
@@ -313,7 +313,7 @@ fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: 
             ui.same_line(0.0);
             ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
         };
-        support::combobox(
+        gui_support::combobox(
             ui,
             im_str!("Macro"),
             &mut task.macro_id,

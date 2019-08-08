@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "xivapi",
+    "gui-support",
     "talan",
     "ventures",
     "xiv",
