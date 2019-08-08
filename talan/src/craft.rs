@@ -197,7 +197,7 @@ fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
             ui::press_confirm(handle);
         }
         // Give the UI a moment before pressing confirm to highlight the recipe again
-        ui::wait(2.0);
+        ui::wait(3.0);
         ui::press_confirm(handle);
     }
     ui::wait(2.0);
