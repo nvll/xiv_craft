@@ -51,6 +51,7 @@ const PADDING_H: f32 = 10.0;
 
 pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
     // Cache these rather than run them in the main loop.
+    let mut result = false;
     let mut ui_state = UiState::default();
     for m in macros {
         ui_state.macro_labels.push(ImString::new(m.name.clone()));
@@ -58,12 +59,13 @@ pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, 
 
     let system = gui_support::init("Talan");
     system.main_loop(|run, ui| {
-        if draw_ui(&ui, &mut cfg, &mut ui_state) {
+        result = draw_ui(&ui, &mut cfg, &mut ui_state);
+        if result {
             *run = false;
         }
     });
 
-    Ok(true)
+    Ok(result)
 }
 
 fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiState) -> bool {
