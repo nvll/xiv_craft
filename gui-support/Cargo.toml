@@ -9,3 +9,4 @@ imgui = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
 imgui-glium-renderer = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
 imgui-winit-support = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
 glium = "0.25.1"
+clipboard = "0.5.0"

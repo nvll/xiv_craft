@@ -5,6 +5,8 @@ use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::time::Instant;
 
+mod clipboard;
+
 pub struct System {
     pub events_loop: glutin::EventsLoop,
     pub display: glium::Display,
@@ -16,7 +18,6 @@ pub struct System {
 
 // This method is copied from Imgui-rs's v0.1.0 example support code
 // with the following modifications:
-// - clipboard support was removed.
 // - Talan's visual style is configured.
 // - Font was changed.
 pub fn init(title: &str) -> System {
@@ -34,6 +35,12 @@ pub fn init(title: &str) -> System {
 
     let mut imgui = Context::create();
     imgui.set_ini_filename(None);
+
+    if let Some(backend) = clipboard::init() {
+        imgui.set_clipboard_backend(Box::new(backend));
+    } else {
+        eprintln!("Failed to initialize clipboard");
+    }
 
     let mut platform = WinitPlatform::init(&mut imgui);
     {
