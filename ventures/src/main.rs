@@ -120,7 +120,12 @@ fn parse_arguments() -> Result<(xiv::XivHandle, Vec<Retainer>), Error> {
         );
 
         for r in &mut retainers {
-            r.next -= Duration::from_secs(t * 60);
+            let adjustment = Duration::from_secs(t * 60);
+            if Instant::now() + adjustment > r.next {
+                r.next = Instant::now();
+            } else {
+                r.next -= Duration::from_secs(t * 60);
+            }
         }
     }
 
@@ -145,17 +150,6 @@ fn main() -> Result<(), Error> {
     loop {
         // Figure out who the first retainer to be finished is and sleep until then.
         retainers.sort_by_key(|r| r.next);
-        for r in &retainers {
-            let nd = r.next - Instant::now();
-            log::debug!(
-                "Retainer {{ id: {}, period: {}, next: {}m{}s }}",
-                r.id,
-                r.period.as_secs() / 60,
-                nd.as_secs() / 60,
-                nd.as_secs() % 60
-            );
-        }
-
         if retainers[0].next > Instant::now() {
             let sleep_duration = retainers[0].next - Instant::now();
             log::info!(
