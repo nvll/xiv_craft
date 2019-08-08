@@ -138,7 +138,7 @@ pub fn send_action(xiv_handle: super::XivHandle, s: &str, _delay: Option<i64>) {
 // attempts to deal with that. This has been tested in environments
 // as low as 11 fps.
 pub fn clear_window(xiv_handle: super::XivHandle) {
-    println!("clearing window...");
+    log::debug!("clearing the game window");
     // If the text input has focus, try clearing the text to prevent
     // saying junk in a linkshell, /say, etc.
     for _ in 0..32 {
