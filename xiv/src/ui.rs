@@ -5,11 +5,7 @@ use log;
 use std::thread::sleep;
 use std::time::Duration;
 
-// Wait |s| seconds, fractions permitted.
-pub fn wait(s: f32) {
-    let ms = (s * 1000_f32) as u64;
-    sleep(Duration::from_millis(ms));
-}
+// This module handles all interactions with the game UI.
 
 // Delay for WM_CHAR events. In testing, even with low fps or
 // higher latency this value is still safe because of the game's
@@ -56,6 +52,12 @@ mod constants {
     pub const MSG_KEY_UP: u32 = 0;
     pub const MSG_KEY_DOWN: u32 = 0;
     pub const MSG_KEY_CHAR: u32 = 0;
+}
+
+// Wait |s| seconds, fractions permitted.
+pub fn wait(s: f32) {
+    let ms = (s * 1000_f32) as u64;
+    sleep(Duration::from_millis(ms));
 }
 
 pub fn cursor_down(xiv_handle: super::XivHandle) {
