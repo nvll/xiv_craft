@@ -262,8 +262,11 @@ impl<'a> Gui {
                         // Use a temp to deal with imgui only allowing i32
                         let mut hq: i32 = qual.hq as i32;
                         if ui.input_int(im_str!("HQ"), &mut hq).build() {
-                            qual.hq = min(max(0, hq as u32), mat.count);
-                            qual.nq = mat.count - qual.hq;
+                            // TODO: Material selection isn't fully implemented, so
+                            // disable the HQ box.
+                            qual.hq = 0;
+                            // qual.hq = min(max(0, hq as u32), mat.count);
+                            // qual.nq = mat.count - qual.hq;
                         }
                     };
                 }
