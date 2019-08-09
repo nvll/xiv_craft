@@ -48,6 +48,8 @@ const CONFIG_W: f32 = TASK_W;
 const CONFIG_H: f32 = TASK_H;
 const PADDING_W: f32 = 10.0;
 const PADDING_H: f32 = 10.0;
+const WINDOW_W: f32 = TASK_W + CONFIG_W + (PADDING_W * 3.0);
+const WINDOW_H: f32 = TASK_H;
 
 pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
     // Cache these rather than run them in the main loop.
@@ -57,7 +59,7 @@ pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, 
         ui_state.macro_labels.push(ImString::new(m.name.clone()));
     }
 
-    let system = gui_support::init("Talan");
+    let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
     system.main_loop(|run, ui| {
         result = draw_ui(&ui, &mut cfg, &mut ui_state);
         if result {

@@ -16,11 +16,13 @@ pub struct System {
     pub font_size: f32,
 }
 
+const FONT_SIZE: f64 = 16.0;
+
 // This method is copied from Imgui-rs's v0.1.0 example support code
 // with the following modifications:
 // - Talan's visual style is configured.
 // - Font was changed.
-pub fn init(title: &str) -> System {
+pub fn init(width: f64, height: f64, title: &str) -> System {
     let title = match title.rfind('/') {
         Some(idx) => title.split_at(idx + 1).1,
         None => title,
@@ -29,7 +31,7 @@ pub fn init(title: &str) -> System {
     let context = glutin::ContextBuilder::new().with_vsync(true);
     let builder = glutin::WindowBuilder::new()
         .with_title(title.to_owned())
-        .with_dimensions(glutin::dpi::LogicalSize::new(1024f64, 768f64));
+        .with_dimensions(glutin::dpi::LogicalSize::new(width, height));
     let display =
         Display::new(builder, context, &events_loop).expect("Failed to initialize display");
 
@@ -50,7 +52,7 @@ pub fn init(title: &str) -> System {
     }
 
     let hidpi_factor = platform.hidpi_factor();
-    let font_size = (13.0 * hidpi_factor) as f32;
+    let font_size = (FONT_SIZE * hidpi_factor) as f32;
     imgui.fonts().add_font(&[
         FontSource::TtfData {
             data: include_bytes!("DroidSans.ttf"),
