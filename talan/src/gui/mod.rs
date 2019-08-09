@@ -1,4 +1,4 @@
-use crate::config::{self, write_config, Config};
+use crate::config::{self, write_config};
 use crate::macros::MacroFile;
 use crate::task::{MaterialCount, Task};
 use failure::Error;
@@ -34,18 +34,16 @@ impl Default for UiState {
     }
 }
 
-pub struct Gui<'a> {
+pub struct Gui {
     state: UiState,
-    config: &'a mut Config,
     macro_labels: Vec<ImString>,
     job_labels: Vec<ImString>,
 }
 
-impl<'a> Gui<'a> {
-    pub fn new(config: &'a mut config::Config, macros: &'a [MacroFile]) -> Gui<'a> {
+impl<'a> Gui {
+    pub fn new(macros: &'a [MacroFile]) -> Gui {
         Gui {
             state: UiState::default(),
-            config,
             macro_labels: macros
                 .iter()
                 .map(|m| ImString::new(m.name.clone()))
@@ -54,7 +52,7 @@ impl<'a> Gui<'a> {
         }
     }
 
-    pub fn start(&mut self) -> Result<bool, Error> {
+    pub fn start(&mut self, mut config: &mut config::Config) -> Result<bool, Error> {
         // If result is true, we exited the window via the craft button.
         let mut result = false;
         let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
@@ -64,7 +62,7 @@ impl<'a> Gui<'a> {
         system.main_loop(|run, ui| {
             result = Gui::draw_task_window(
                 &ui,
-                &mut self.config,
+                &mut config,
                 &mut self.state,
                 &self.macro_labels[..],
                 &self.job_labels[..],
@@ -74,12 +72,12 @@ impl<'a> Gui<'a> {
             }
 
             if self.state.show_config_window {
-                Gui::draw_config_window(&ui, &mut self.config, &mut self.state);
+                Gui::draw_config_window(&ui, &mut config, &mut self.state);
             }
 
             // If a task was removed via the delete button clear it out.
             if let Some(id) = self.state.task_to_remove {
-                self.config.tasks.remove(id);
+                config.tasks.remove(id);
                 self.state.task_to_remove = None;
             }
         });
