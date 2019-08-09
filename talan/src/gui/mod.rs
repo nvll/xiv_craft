@@ -57,10 +57,10 @@ impl<'a> Gui {
     pub fn start(&mut self, mut config: &mut config::Config) -> Result<bool, Error> {
         let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
 
-        // Due to the way borrowing and closures work, most of the rendering methods
+        // Due to the way borrowing and closures work, most of the rendering impl
         // borrow inner members of our GUI state and are otherwise not methods.
         system.main_loop(|run, ui| {
-            if Gui::draw_task_window(
+            if Gui::draw_main_window(
                 &ui,
                 &mut config,
                 &mut self.state,
@@ -74,74 +74,81 @@ impl<'a> Gui {
                 Gui::draw_config_window(&ui, &mut config, &mut self.state);
             }
 
-            // If a task was removed via the delete button clear it out.
             if let Some(id) = self.state.task_to_remove {
                 config.tasks.remove(id);
                 self.state.task_to_remove = None;
+            }
+
+            if self.state.add_task_button_clicked {
+                // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
+                // add it to our tasks.
+                match xivapi::get_recipe_for_job(
+                    self.state.search_str.to_str(),
+                    self.state.search_job as u32,
+                ) {
+                    Ok(v) => {
+                        log::trace!("recipe result is: {:#?}", v);
+                        if let Some(recipe) = v {
+                            let task = Task {
+                                quantity: 1,
+                                is_collectable: false,
+                                use_any_mats: true,
+                                // Initialize the material qualities to be NQ for everything
+                                mat_quality: recipe
+                                    .mats
+                                    .iter()
+                                    .map(|m| MaterialCount { nq: m.count, hq: 0 })
+                                    .collect(),
+                                recipe,
+                                macro_id: 0,
+                            };
+                            config.tasks.push(task);
+                        }
+                    }
+                    Err(e) => println!("Error fetching recipe: {}", e.to_string()),
+                }
+
+                self.state.add_task_button_clicked = false;
             }
         });
 
         Ok(self.state.craft_button_clicked)
     }
 
-    fn draw_task_window<'b>(
+    fn draw_main_window<'b>(
         ui: &imgui::Ui<'b>,
         config: &mut config::Config,
         state: &mut UiState,
         macros: &[ImString],
         jobs: &[ImString],
     ) -> bool {
-        // Ensure our state is in a good ... state.
-        if state.add_task_button_clicked {
-            // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
-            // add it to our tasks.
-            match xivapi::get_recipe_for_job(state.search_str.to_str(), state.search_job as u32) {
-                Ok(v) => {
-                    log::trace!("recipe result is: {:#?}", v);
-                    if let Some(recipe) = v {
-                        let task = Task {
-                            quantity: 1,
-                            is_collectable: false,
-                            use_any_mats: true,
-                            // Initialize the material qualities to be NQ for everything
-                            mat_quality: recipe
-                                .mats
-                                .iter()
-                                .map(|m| MaterialCount { nq: m.count, hq: 0 })
-                                .collect(),
-                            recipe,
-                            macro_id: 0,
-                        };
-                        config.tasks.push(task);
-                    }
-                }
-                Err(e) => println!("Error fetching recipe: {}", e.to_string()),
-            }
-
-            state.add_task_button_clicked = false;
-        }
-
-        // Left side window
+        let mut menu_height: f32 = 0.0;
         ui.window(im_str!("Talan"))
             .size([WINDOW_W, WINDOW_H], Condition::FirstUseEver)
-            .position([0.0, 0.0], Condition::FirstUseEver)
+            .position([0.0, menu_height], Condition::FirstUseEver)
+            .scroll_bar(false)
             .title_bar(false)
             .movable(false)
+            .resizable(false)
             .collapsible(false)
             .menu_bar(true)
             .build(|| {
-                let mut menu_height: f32 = 0.0;
+                // Attaching the menu to the main window seems to make calculating
+                // offsets easier than if it attached to the window context itself.
                 ui.menu_bar(|| {
-                    menu_height = ui.get_window_size()[1];
                     ui.menu(im_str!("File")).build(|| {
                         ui.menu_item(im_str!("Preferences"))
                             .selected(&mut state.show_config_window)
                             .build();
+                        ui.separator();
                         ui.menu_item(im_str!("Quit"))
                             .selected(&mut state.exit_gui)
                             .build();
                     });
+                    menu_height = ui.get_window_size()[1];
                 });
+                // THe header frame contains our search box, the job selector,
+                // and the 'Add Task' button.
                 ui.child_frame(im_str!("Header"), [0.0, HEADER_H])
                     .build(|| {
                         {
@@ -226,6 +233,11 @@ impl<'a> Gui {
                 "{} Durability  {} Difficulty  {} Quality",
                 task.recipe.durability, task.recipe.difficulty, task.recipe.quality
             ));
+            ui.same_line(ui.get_window_size()[0] - 15.0);
+            if ui.small_button(im_str!("x")) {
+                ui.pop_id();
+                return false;
+            }
             ui.checkbox(
                 im_str!("Use materials of any quality"),
                 &mut task.use_any_mats,
@@ -263,7 +275,7 @@ impl<'a> Gui {
                         let mut hq: i32 = qual.hq as i32;
                         if ui.input_int(im_str!("HQ"), &mut hq).build() {
                             // TODO: Material selection isn't fully implemented, so
-                            // disable the HQ box.
+                            // disable the HQ box
                             qual.hq = 0;
                             // qual.hq = min(max(0, hq as u32), mat.count);
                             // qual.nq = mat.count - qual.hq;
@@ -281,11 +293,6 @@ impl<'a> Gui {
                 ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
             };
             gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &macros);
-
-            if ui.button(im_str!("Delete Task"), [0.0, 0.0]) {
-                ui.pop_id();
-                return false;
-            }
         }
         ui.pop_id();
 
@@ -297,6 +304,7 @@ impl<'a> Gui {
         ui.window(im_str!("Preferences"))
             .always_auto_resize(true)
             .opened(&mut state.show_config_window)
+            .collapsible(false)
             .build(|| {
                 if ui
                     .collapsing_header(im_str!("Gear Sets"))
