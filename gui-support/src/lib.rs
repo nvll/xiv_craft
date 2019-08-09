@@ -146,10 +146,10 @@ pub fn combobox<'a>(
 
 pub fn set_talan_style(style: &mut imgui::Style) {
     // Set all windows / widgets to rectangles
-    style.child_rounding = 0.0;
-    style.popup_rounding = 0.0;
-    style.frame_rounding = 0.0;
-    style.window_rounding = 0.0;
+    style.child_rounding = 1.0;
+    style.popup_rounding = 1.0;
+    style.frame_rounding = 1.0;
+    style.window_rounding = 1.0;
     style.frame_border_size = 1.0;
 
     // This style is adapted from the light style in imgui_draw.cpp

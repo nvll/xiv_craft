@@ -1,332 +1,380 @@
-use crate::config::{self, write_config};
+use crate::config::{self, write_config, Config};
 use crate::macros::MacroFile;
 use crate::task::{MaterialCount, Task};
 use failure::Error;
 use gui_support;
-use imgui::{im_str, Condition, ImGuiInputTextFlags, ImString};
+use imgui::*;
 use std::cmp::{max, min};
-
-#[derive(Debug)]
-struct UiState {
-    add_clicked: bool,
-    search_str: ImString,
-    search_job: i32,
-    macro_labels: Vec<ImString>,
-    job_labels: Vec<ImString>,
-    tasks_to_remove: Vec<usize>,
-    return_tasks: bool,
-}
-
-impl Default for UiState {
-    fn default() -> UiState {
-        UiState {
-            add_clicked: false,
-            search_str: ImString::with_capacity(128),
-            search_job: 0,
-            macro_labels: Vec::new(),
-            job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
-            tasks_to_remove: Vec::new(),
-            return_tasks: false,
-        }
-    }
-}
-
-fn check_state_values(state: &mut UiState, tasks: &mut Vec<Task>) {
-    // Due to borrow semantics, deferring the task remove to outside the iterator
-    // borrow is necessary.
-    if !state.tasks_to_remove.is_empty() {
-        for task_id in &state.tasks_to_remove {
-            tasks.remove(*task_id);
-        }
-        state.tasks_to_remove.clear();
-    }
-}
 
 const TASK_W: f32 = 400.0;
 const TASK_H: f32 = 600.0;
 const CONFIG_W: f32 = TASK_W;
 const CONFIG_H: f32 = TASK_H;
-const PADDING_W: f32 = 10.0;
-const PADDING_H: f32 = 10.0;
-const WINDOW_W: f32 = TASK_W + CONFIG_W + (PADDING_W * 3.0);
+const WINDOW_W: f32 = TASK_W;
 const WINDOW_H: f32 = TASK_H;
 
-pub fn init(mut cfg: &mut config::Config, macros: &[MacroFile]) -> Result<bool, Error> {
-    // Cache these rather than run them in the main loop.
-    let mut result = false;
-    let mut ui_state = UiState::default();
-    for m in macros {
-        ui_state.macro_labels.push(ImString::new(m.name.clone()));
-    }
-
-    let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
-    system.main_loop(|run, ui| {
-        result = draw_ui(&ui, &mut cfg, &mut ui_state);
-        if result {
-            *run = false;
-        }
-    });
-
-    Ok(result)
+#[derive(Debug)]
+struct UiState {
+    show_config_window: bool,
+    add_clicked: bool,
+    search_str: ImString,
+    search_job: i32,
+    return_tasks: bool,
+    task_to_remove: Option<usize>,
 }
 
-fn draw_ui<'a>(ui: &imgui::Ui<'a>, cfg: &mut config::Config, mut state: &mut UiState) -> bool {
-    // Ensure our state is in a good ... state.
-    check_state_values(&mut state, &mut cfg.tasks);
-    if state.add_clicked {
-        // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
-        // add it to our tasks.
-        match xivapi::get_recipe_for_job(state.search_str.to_str(), state.search_job as u32) {
-            Ok(v) => {
-                log::trace!("recipe result is: {:#?}", v);
-                if let Some(recipe) = v {
-                    let task = Task {
-                        quantity: 1,
-                        is_collectable: false,
-                        use_any_mats: true,
-                        // Initialize the material qualities to be NQ for everything
-                        mat_quality: recipe
-                            .mats
-                            .iter()
-                            .map(|m| MaterialCount { nq: m.count, hq: 0 })
-                            .collect(),
-                        recipe,
-                        macro_id: 0,
-                    };
-                    cfg.tasks.push(task);
-                }
-            }
-            Err(e) => println!("Error fetching recipe: {}", e.to_string()),
+impl Default for UiState {
+    fn default() -> UiState {
+        UiState {
+            show_config_window: false,
+            add_clicked: false,
+            search_str: ImString::with_capacity(128),
+            search_job: 0,
+            return_tasks: false,
+            task_to_remove: None,
         }
+    }
+}
 
-        state.add_clicked = false;
+pub struct Gui<'a> {
+    state: UiState,
+    config: &'a mut Config,
+    macro_labels: Vec<ImString>,
+    job_labels: Vec<ImString>,
+}
+
+impl<'a> Gui<'a> {
+    pub fn new(config: &'a mut config::Config, macros: &'a [MacroFile]) -> Gui<'a> {
+        Gui {
+            state: UiState::default(),
+            config,
+            macro_labels: macros
+                .iter()
+                .map(|m| ImString::new(m.name.clone()))
+                .collect(),
+            job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
+        }
     }
 
-    // Left side window
-    ui.window(im_str!("Talan"))
-        .size([TASK_W, TASK_H], Condition::Always)
-        .position([PADDING_W, PADDING_H], Condition::FirstUseEver)
-        .resizable(false)
-        .movable(false)
-        .collapsible(false)
-        .build(|| {
-            // Jobs for the combo box. Can't be constant due to unknown size at compile time.
-            {
-                let _width = ui.push_item_width(60.0);
-                gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &state.job_labels);
-            }
-            ui.same_line(0.0);
-            // Both pressing enter in the item textbox and pressing the add button should
-            // register a recipe lookup.
-            {
-                let _width = ui.push_item_width(200.0);
-                if ui
-                    .input_text(im_str!("Item"), &mut state.search_str)
-                    .flags(
-                        ImGuiInputTextFlags::EnterReturnsTrue | ImGuiInputTextFlags::AutoSelectAll,
-                    )
-                    .build()
-                {
-                    state.add_clicked = true;
-                }
-                ui.same_line(0.0);
-                if ui.button(im_str!("Add"), [0.0, 0.0]) {
-                    state.add_clicked = true;
-                }
+    pub fn start(&mut self) -> Result<bool, Error> {
+        // If result is true, we exited the window via the craft button.
+        let mut result = false;
+        let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
+
+        // Due to the way borrowing and closures work, most of the rendering methods
+        // borrow inner members of our GUI state and are otherwise not methods.
+        system.main_loop(|run, ui| {
+            result = Gui::draw_task_window(
+                &ui,
+                &mut self.config,
+                &mut self.state,
+                &self.macro_labels[..],
+                &self.job_labels[..],
+            );
+            if result {
+                *run = false;
             }
 
-            // Both Tasks and their materials are enumerated so we can generate unique
-            // UI ids for widgets and prevent any sort of UI clash.
-            for (task_id, mut task) in &mut cfg.tasks.iter_mut().enumerate() {
-                draw_task(&ui, &mut state, task_id, &mut task);
+            if self.state.show_config_window {
+                Gui::draw_config_window(&ui, &mut self.config, &mut self.state);
             }
 
-            ui.separator();
-            // Only show the craft button if we have tasks added
-            if !cfg.tasks.is_empty() && ui.button(im_str!("Craft Tasks"), [0.0, 0.0]) {
-                if write_config(cfg).is_err() {
-                    log::error!("failed to write config");
-                }
-                state.return_tasks = true;
+            // If a task was removed via the delete button clear it out.
+            if let Some(id) = self.state.task_to_remove {
+                self.config.tasks.remove(id);
+                self.state.task_to_remove = None;
             }
         });
-    // Right side window
-    ui.window(im_str!("Configuration"))
-        .size([CONFIG_W, CONFIG_H], Condition::FirstUseEver)
-        .position([TASK_W + (PADDING_W * 2.0), PADDING_H], Condition::Always)
-        .movable(false)
-        .collapsible(false)
-        .resizable(false)
-        .build(|| {
-            if ui
-                .collapsing_header(im_str!("Gear Sets"))
-                .default_open(true)
-                .build()
-            {
+
+        Ok(result)
+    }
+
+    fn draw_task_window<'b>(
+        ui: &imgui::Ui<'b>,
+        config: &mut config::Config,
+        state: &mut UiState,
+        macros: &[ImString],
+        jobs: &[ImString],
+    ) -> bool {
+        // Ensure our state is in a good ... state.
+        if state.add_clicked {
+            // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
+            // add it to our tasks.
+            match xivapi::get_recipe_for_job(state.search_str.to_str(), state.search_job as u32) {
+                Ok(v) => {
+                    log::trace!("recipe result is: {:#?}", v);
+                    if let Some(recipe) = v {
+                        let task = Task {
+                            quantity: 1,
+                            is_collectable: false,
+                            use_any_mats: true,
+                            // Initialize the material qualities to be NQ for everything
+                            mat_quality: recipe
+                                .mats
+                                .iter()
+                                .map(|m| MaterialCount { nq: m.count, hq: 0 })
+                                .collect(),
+                            recipe,
+                            macro_id: 0,
+                        };
+                        config.tasks.push(task);
+                    }
+                }
+                Err(e) => println!("Error fetching recipe: {}", e.to_string()),
+            }
+
+            state.add_clicked = false;
+        }
+
+        // Left side window
+        ui.window(im_str!("Talan"))
+            .size([TASK_W, TASK_H], Condition::Always)
+            .position([0.0, 0.0], Condition::FirstUseEver)
+            .title_bar(false)
+            .resizable(false)
+            .movable(false)
+            .collapsible(false)
+            .menu_bar(true)
+            .build(|| {
+                ui.menu_bar(|| {
+                    ui.menu(im_str!("File")).build(|| {
+                        ui.menu_item(im_str!("Preferences"))
+                            .selected(&mut state.show_config_window)
+                            .build();
+                    });
+                });
+                ui.spacing();
                 {
-                    let _width = ui.push_item_width(70.0);
-                    if ui.input_int(im_str!("Carpenter"), &mut cfg.gear[0]).build() {
-                        cfg.gear[0] = max(cfg.gear[0], 0);
-                    }
+                    let _width = ui.push_item_width(60.0);
+                    gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &jobs);
+                }
+                ui.same_line(0.0);
+                // Both pressing enter in the item textbox and pressing the add button should
+                // register a recipe lookup.
+                {
+                    let _width = ui.push_item_width(200.0);
                     if ui
-                        .input_int(im_str!("Blacksmith"), &mut cfg.gear[1])
-                        .build()
-                    {
-                        cfg.gear[1] = max(cfg.gear[1], 0);
-                    }
-                    if ui.input_int(im_str!("Armorer"), &mut cfg.gear[2]).build() {
-                        cfg.gear[2] = max(cfg.gear[2], 0);
-                    }
-                    if ui.input_int(im_str!("Goldsmith"), &mut cfg.gear[3]).build() {
-                        cfg.gear[3] = max(cfg.gear[3], 0);
-                    }
-                    if ui
-                        .input_int(im_str!("Leatherworker"), &mut cfg.gear[4])
-                        .build()
-                    {
-                        cfg.gear[4] = max(cfg.gear[4], 0);
-                    }
-                    if ui.input_int(im_str!("Weaver"), &mut cfg.gear[5]).build() {
-                        cfg.gear[5] = max(cfg.gear[5], 0);
-                    }
-                    if ui.input_int(im_str!("Alchemist"), &mut cfg.gear[6]).build() {
-                        cfg.gear[6] = max(cfg.gear[6], 0);
-                    }
-                    if ui
-                        .input_int(im_str!("Culinarian"), &mut cfg.gear[7])
-                        .build()
-                    {
-                        cfg.gear[7] = max(cfg.gear[7], 0);
-                    }
-                    if ui
-                        .input_int(
-                            im_str!("Non-DoH set (for Collectable safety)"),
-                            &mut cfg.non_doh_gear,
+                        .input_text(im_str!("Item"), &mut state.search_str)
+                        .flags(
+                            ImGuiInputTextFlags::EnterReturnsTrue
+                                | ImGuiInputTextFlags::AutoSelectAll,
                         )
                         .build()
                     {
-                        cfg.non_doh_gear = max(cfg.non_doh_gear, 0);
+                        state.add_clicked = true;
+                    }
+                    ui.same_line(0.0);
+                    if ui.button(im_str!("Add"), [0.0, 0.0]) {
+                        state.add_clicked = true;
                     }
                 }
-            }
-            if ui
-                .collapsing_header(im_str!("Options"))
-                .default_open(true)
-                .build()
-            {
-                ui.checkbox(
-                    im_str!("Reload task list at start"),
-                    &mut cfg.options.reload_tasks,
-                );
-                if ui.is_item_hovered() {
-                    ui.tooltip_text(
-                        "Tasks will be saved when tasks are started, or the config is saved",
-                    );
-                }
-                ui.checkbox(
-                    im_str!("Use slower menu navigation"),
-                    &mut cfg.options.use_slow_navigation,
-                );
-                if ui.is_item_hovered() {
-                    ui.tooltip_text(
-                        "Use this option if you have a lower (<30) fps or high latency",
-                    );
-                }
-            };
-            if ui.small_button(im_str!("Save changes")) && write_config(cfg).is_err() {
-                println!("Error writing config :(")
-            }
-        });
 
-    // If we return a |true| value the main_loop will know to bail out and start crafting.
-    state.return_tasks
-}
-
-fn draw_task<'a>(ui: &imgui::Ui<'a>, state: &mut UiState, task_id: usize, task: &mut Task) {
-    ui.push_id(task_id as i32);
-    // header should be closeable
-    let header_name = ImString::new(format!(
-        "[{} {}] {}x {} {}",
-        xiv::JOBS[task.recipe.job as usize],
-        task.recipe.level,
-        task.quantity,
-        task.recipe.name.clone(),
-        if task.is_collectable {
-            "(Collectable)"
-        } else {
-            ""
-        }
-    ));
-    if ui
-        .collapsing_header(&header_name)
-        .default_open(true)
-        .build()
-    {
-        ui.text(format!(
-            "{} Durability  {} Difficulty  {} Quality",
-            task.recipe.durability, task.recipe.difficulty, task.recipe.quality
-        ));
-        ui.checkbox(
-            im_str!("Use materials of any quality"),
-            &mut task.use_any_mats,
-        );
-
-        // Draw material widgets, or just the checkbox if checked.
-        for (i, (mat, qual)) in task
-            .recipe
-            .mats
-            .iter()
-            .zip(task.mat_quality.iter_mut())
-            .enumerate()
-        {
-            ui.push_id(i as i32);
-            if task.use_any_mats {
-                // Create a quick label string for the material
-                ui.text(format!("{}x {}", mat.count, mat.name));
-            } else {
-                // Otherwise we need to convert some numerical values to strings,
-                // then feed them into the widgets. This seems like it should
-                // thrash like crazy, but thankfully it's 2019 and processors
-                // are fast?
-                let mut nq_imstr = ImString::new(qual.nq.to_string());
-                ui.text(&ImString::new(mat.name.clone()));
-                {
-                    let _width = ui.push_item_width(25.0);
-                    ui.input_text(im_str!("NQ"), &mut nq_imstr)
-                        .flags(ImGuiInputTextFlags::ReadOnly)
-                        .build();
-                };
-                ui.same_line(0.0);
-                {
-                    let _width = ui.push_item_width(75.0);
-                    // Use a temp to deal with imgui only allowing i32
-                    let mut hq: i32 = qual.hq as i32;
-                    if ui.input_int(im_str!("HQ"), &mut hq).build() {
-                        qual.hq = min(max(0, hq as u32), mat.count);
-                        qual.nq = mat.count - qual.hq;
+                // Both Tasks and their materials are enumerated so we can generate unique
+                // UI ids for widgets and prevent any sort of UI clash.
+                for (ui_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
+                    if !Gui::draw_task(ui, ui_id as i32, &mut t, macros) {
+                        state.task_to_remove = Some(ui_id);
                     }
-                };
-            }
-            ui.pop_id();
-        }
-        {
-            let _width = ui.push_item_width(75.0);
-            if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
-                task.quantity = max(1, task.quantity);
-            }
-            ui.same_line(0.0);
-            ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-        };
-        gui_support::combobox(
-            ui,
-            im_str!("Macro"),
-            &mut task.macro_id,
-            &state.macro_labels,
-        );
+                }
 
-        if ui.button(im_str!("Delete Task"), [0.0, 0.0]) {
-            state.tasks_to_remove.push(task_id);
-        }
+                ui.separator();
+                // Only show the craft button if we have tasks added
+                if !config.tasks.is_empty() && ui.button(im_str!("Craft Tasks"), [0.0, 0.0]) {
+                    if write_config(config).is_err() {
+                        log::error!("failed to write config");
+                    }
+                    state.return_tasks = true;
+                }
+            });
+
+        // If we return a |true| value the main_loop will know to bail out and start crafting.
+        state.return_tasks
     }
-    ui.pop_id();
+
+    fn draw_task<'b>(ui: &imgui::Ui<'b>, ui_id: i32, task: &mut Task, macros: &[ImString]) -> bool {
+        ui.push_id(ui_id);
+        // header should be closeable
+        let header_name = ImString::new(format!(
+            "[{} {}] {}x {} {}",
+            xiv::JOBS[task.recipe.job as usize],
+            task.recipe.level,
+            task.quantity,
+            task.recipe.name.clone(),
+            if task.is_collectable {
+                "(Collectable)"
+            } else {
+                ""
+            }
+        ));
+        if ui
+            .collapsing_header(&header_name)
+            .default_open(true)
+            .build()
+        {
+            ui.text(format!(
+                "{} Durability  {} Difficulty  {} Quality",
+                task.recipe.durability, task.recipe.difficulty, task.recipe.quality
+            ));
+            ui.checkbox(
+                im_str!("Use materials of any quality"),
+                &mut task.use_any_mats,
+            );
+
+            // Draw material widgets, or just the checkbox if checked.
+            for (i, (mat, qual)) in task
+                .recipe
+                .mats
+                .iter()
+                .zip(task.mat_quality.iter_mut())
+                .enumerate()
+            {
+                ui.push_id(i as i32);
+                if task.use_any_mats {
+                    // Create a quick label string for the material
+                    ui.text(format!("{}x {}", mat.count, mat.name));
+                } else {
+                    // Otherwise we need to convert some numerical values to strings,
+                    // then feed them into the widgets. This seems like it should
+                    // thrash like crazy, but thankfully it's 2019 and processors
+                    // are fast?
+                    let mut nq_imstr = ImString::new(qual.nq.to_string());
+                    ui.text(&ImString::new(mat.name.clone()));
+                    {
+                        let _width = ui.push_item_width(25.0);
+                        ui.input_text(im_str!("NQ"), &mut nq_imstr)
+                            .flags(ImGuiInputTextFlags::ReadOnly)
+                            .build();
+                    };
+                    ui.same_line(0.0);
+                    {
+                        let _width = ui.push_item_width(75.0);
+                        // Use a temp to deal with imgui only allowing i32
+                        let mut hq: i32 = qual.hq as i32;
+                        if ui.input_int(im_str!("HQ"), &mut hq).build() {
+                            qual.hq = min(max(0, hq as u32), mat.count);
+                            qual.nq = mat.count - qual.hq;
+                        }
+                    };
+                }
+                ui.pop_id();
+            }
+            {
+                let _width = ui.push_item_width(75.0);
+                if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
+                    task.quantity = max(1, task.quantity);
+                }
+                ui.same_line(0.0);
+                ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
+            };
+            gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &macros);
+
+            if ui.button(im_str!("Delete Task"), [0.0, 0.0]) {
+                ui.pop_id();
+                return false;
+            }
+        }
+        ui.pop_id();
+
+        true
+    }
+
+    fn draw_config_window(ui: &imgui::Ui, config: &mut config::Config, state: &mut UiState) {
+        // Right side window
+        ui.window(im_str!("Preferences"))
+            .always_auto_resize(true)
+            .size([CONFIG_W, CONFIG_H], Condition::FirstUseEver)
+            .opened(&mut state.show_config_window)
+            .build(|| {
+                if ui
+                    .collapsing_header(im_str!("Gear Sets"))
+                    .default_open(true)
+                    .build()
+                {
+                    {
+                        let _width = ui.push_item_width(80.0);
+                        if ui
+                            .input_int(im_str!("Carpenter"), &mut config.gear[0])
+                            .build()
+                        {
+                            config.gear[0] = max(config.gear[0], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Blacksmith"), &mut config.gear[1])
+                            .build()
+                        {
+                            config.gear[1] = max(config.gear[1], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Armorer"), &mut config.gear[2])
+                            .build()
+                        {
+                            config.gear[2] = max(config.gear[2], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Goldsmith"), &mut config.gear[3])
+                            .build()
+                        {
+                            config.gear[3] = max(config.gear[3], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Leatherworker"), &mut config.gear[4])
+                            .build()
+                        {
+                            config.gear[4] = max(config.gear[4], 0);
+                        }
+                        if ui.input_int(im_str!("Weaver"), &mut config.gear[5]).build() {
+                            config.gear[5] = max(config.gear[5], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Alchemist"), &mut config.gear[6])
+                            .build()
+                        {
+                            config.gear[6] = max(config.gear[6], 0);
+                        }
+                        if ui
+                            .input_int(im_str!("Culinarian"), &mut config.gear[7])
+                            .build()
+                        {
+                            config.gear[7] = max(config.gear[7], 0);
+                        }
+                        if ui
+                            .input_int(
+                                im_str!("Non-DoH set (for Collectable safety)"),
+                                &mut config.non_doh_gear,
+                            )
+                            .build()
+                        {
+                            config.non_doh_gear = max(config.non_doh_gear, 0);
+                        }
+                    }
+                }
+                if ui
+                    .collapsing_header(im_str!("Options"))
+                    .default_open(true)
+                    .build()
+                {
+                    ui.checkbox(
+                        im_str!("Reload task list at start"),
+                        &mut config.options.reload_tasks,
+                    );
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text(
+                            "Tasks will be saved when tasks are started, or the config is saved",
+                        );
+                    }
+                    ui.checkbox(
+                        im_str!("Use slower menu navigation"),
+                        &mut config.options.use_slow_navigation,
+                    );
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text(
+                            "Use this option if you have a lower (<30) fps or high latency",
+                        );
+                    }
+                };
+                if ui.button(im_str!("Save changes"), [0.0, 0.0]) && write_config(config).is_err() {
+                    log::error!("Error writing config :(")
+                }
+            });
+    }
 }
