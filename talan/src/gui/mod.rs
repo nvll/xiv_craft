@@ -14,6 +14,7 @@ const FOOTER_H: f32 = 25.0;
 #[derive(Debug)]
 struct UiState {
     show_config_window: bool,
+    craft_button_clicked: bool,
     add_task_button_clicked: bool,
     search_str: ImString,
     search_job: i32,
@@ -26,6 +27,7 @@ impl Default for UiState {
         UiState {
             show_config_window: false,
             add_task_button_clicked: false,
+            craft_button_clicked: false,
             search_str: ImString::with_capacity(128),
             search_job: 0,
             exit_gui: false,
@@ -53,21 +55,18 @@ impl<'a> Gui {
     }
 
     pub fn start(&mut self, mut config: &mut config::Config) -> Result<bool, Error> {
-        // If result is true, we exited the window via the craft button.
-        let mut result = false;
         let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
 
         // Due to the way borrowing and closures work, most of the rendering methods
         // borrow inner members of our GUI state and are otherwise not methods.
         system.main_loop(|run, ui| {
-            result = Gui::draw_task_window(
+            if Gui::draw_task_window(
                 &ui,
                 &mut config,
                 &mut self.state,
                 &self.macro_labels[..],
                 &self.job_labels[..],
-            );
-            if result {
+            ) {
                 *run = false;
             }
 
@@ -82,7 +81,7 @@ impl<'a> Gui {
             }
         });
 
-        Ok(result)
+        Ok(self.state.craft_button_clicked)
     }
 
     fn draw_task_window<'b>(
@@ -138,6 +137,9 @@ impl<'a> Gui {
                         ui.menu_item(im_str!("Preferences"))
                             .selected(&mut state.show_config_window)
                             .build();
+                        ui.menu_item(im_str!("Quit"))
+                            .selected(&mut state.exit_gui)
+                            .build();
                     });
                 });
                 ui.child_frame(im_str!("Header"), [0.0, HEADER_H])
@@ -191,11 +193,12 @@ impl<'a> Gui {
                                 log::error!("failed to write config");
                             }
                             state.exit_gui = true;
+                            state.craft_button_clicked = true;
                         }
                     });
             });
 
-        // If we return a |true| value the main_loop will know to bail out and start crafting.
+        // If we return a |true| value the main_loop will know to exit the run loop.
         state.exit_gui
     }
 
