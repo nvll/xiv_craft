@@ -33,13 +33,11 @@ fn main() -> Result<(), Error> {
             ))
             .get_matches();
 
-    let mut level: log::Level = log::Level::Error;
-    match matches.occurrences_of("verbose") {
-        1 => level = log::Level::Info,
-        2 => level = log::Level::Debug,
-        3 => level = log::Level::Trace,
-        _ => (),
-    }
+    let level = match matches.occurrences_of("verbose") {
+        1 => log::Level::Debug,
+        2 => log::Level::Trace,
+        _ => log::Level::Info,
+    };
 
     simple_logger::init_with_level(level)?;
 

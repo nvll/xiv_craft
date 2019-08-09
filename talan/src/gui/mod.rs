@@ -4,7 +4,7 @@ use crate::task::{MaterialCount, Task};
 use failure::Error;
 use gui_support;
 use imgui::*;
-use std::cmp::{max, min};
+use std::cmp::max;
 
 const WINDOW_W: f32 = 400.0;
 const WINDOW_H: f32 = 700.0;
