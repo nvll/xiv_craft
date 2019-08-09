@@ -6,20 +6,18 @@ use gui_support;
 use imgui::*;
 use std::cmp::{max, min};
 
-const TASK_W: f32 = 400.0;
-const TASK_H: f32 = 600.0;
-const CONFIG_W: f32 = TASK_W;
-const CONFIG_H: f32 = TASK_H;
-const WINDOW_W: f32 = TASK_W;
-const WINDOW_H: f32 = TASK_H;
+const WINDOW_W: f32 = 400.0;
+const WINDOW_H: f32 = 700.0;
+const HEADER_H: f32 = 25.0;
+const FOOTER_H: f32 = 25.0;
 
 #[derive(Debug)]
 struct UiState {
     show_config_window: bool,
-    add_clicked: bool,
+    add_task_button_clicked: bool,
     search_str: ImString,
     search_job: i32,
-    return_tasks: bool,
+    exit_gui: bool,
     task_to_remove: Option<usize>,
 }
 
@@ -27,10 +25,10 @@ impl Default for UiState {
     fn default() -> UiState {
         UiState {
             show_config_window: false,
-            add_clicked: false,
+            add_task_button_clicked: false,
             search_str: ImString::with_capacity(128),
             search_job: 0,
-            return_tasks: false,
+            exit_gui: false,
             task_to_remove: None,
         }
     }
@@ -97,7 +95,7 @@ impl<'a> Gui<'a> {
         jobs: &[ImString],
     ) -> bool {
         // Ensure our state is in a good ... state.
-        if state.add_clicked {
+        if state.add_task_button_clicked {
             // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
             // add it to our tasks.
             match xivapi::get_recipe_for_job(state.search_str.to_str(), state.search_job as u32) {
@@ -123,72 +121,84 @@ impl<'a> Gui<'a> {
                 Err(e) => println!("Error fetching recipe: {}", e.to_string()),
             }
 
-            state.add_clicked = false;
+            state.add_task_button_clicked = false;
         }
 
         // Left side window
         ui.window(im_str!("Talan"))
-            .size([TASK_W, TASK_H], Condition::Always)
+            .size([WINDOW_W, WINDOW_H], Condition::FirstUseEver)
             .position([0.0, 0.0], Condition::FirstUseEver)
             .title_bar(false)
-            .resizable(false)
             .movable(false)
             .collapsible(false)
             .menu_bar(true)
             .build(|| {
+                let mut menu_height: f32 = 0.0;
                 ui.menu_bar(|| {
+                    menu_height = ui.get_window_size()[1];
                     ui.menu(im_str!("File")).build(|| {
                         ui.menu_item(im_str!("Preferences"))
                             .selected(&mut state.show_config_window)
                             .build();
                     });
                 });
+                ui.child_frame(im_str!("Header"), [0.0, HEADER_H])
+                    .build(|| {
+                        {
+                            let _width = ui.push_item_width(60.0);
+                            gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &jobs);
+                        }
+                        ui.same_line(0.0);
+                        // Both pressing enter in the item textbox and pressing the add button should
+                        // register a recipe lookup.
+                        {
+                            let _width = ui.push_item_width(200.0);
+                            if ui
+                                .input_text(im_str!("Item"), &mut state.search_str)
+                                .flags(
+                                    ImGuiInputTextFlags::EnterReturnsTrue
+                                        | ImGuiInputTextFlags::AutoSelectAll,
+                                )
+                                .build()
+                            {
+                                state.add_task_button_clicked = true;
+                            }
+                            ui.same_line(0.0);
+                            if ui.button(im_str!("Add"), [0.0, 0.0]) {
+                                state.add_task_button_clicked = true;
+                            }
+                        }
+                    });
                 ui.spacing();
-                {
-                    let _width = ui.push_item_width(60.0);
-                    gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &jobs);
-                }
-                ui.same_line(0.0);
-                // Both pressing enter in the item textbox and pressing the add button should
-                // register a recipe lookup.
-                {
-                    let _width = ui.push_item_width(200.0);
-                    if ui
-                        .input_text(im_str!("Item"), &mut state.search_str)
-                        .flags(
-                            ImGuiInputTextFlags::EnterReturnsTrue
-                                | ImGuiInputTextFlags::AutoSelectAll,
-                        )
-                        .build()
-                    {
-                        state.add_clicked = true;
+                ui.child_frame(
+                    im_str!("Task list"),
+                    [0.0, WINDOW_H - HEADER_H - FOOTER_H - menu_height],
+                )
+                .build(|| {
+                    // Both Tasks and their materials are enumerated so we can generate unique
+                    // UI ids for widgets and prevent any sort of UI clash.
+                    for (ui_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
+                        if !Gui::draw_task(ui, ui_id as i32, &mut t, macros) {
+                            state.task_to_remove = Some(ui_id);
+                        }
                     }
-                    ui.same_line(0.0);
-                    if ui.button(im_str!("Add"), [0.0, 0.0]) {
-                        state.add_clicked = true;
-                    }
-                }
-
-                // Both Tasks and their materials are enumerated so we can generate unique
-                // UI ids for widgets and prevent any sort of UI clash.
-                for (ui_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
-                    if !Gui::draw_task(ui, ui_id as i32, &mut t, macros) {
-                        state.task_to_remove = Some(ui_id);
-                    }
-                }
-
-                ui.separator();
-                // Only show the craft button if we have tasks added
-                if !config.tasks.is_empty() && ui.button(im_str!("Craft Tasks"), [0.0, 0.0]) {
-                    if write_config(config).is_err() {
-                        log::error!("failed to write config");
-                    }
-                    state.return_tasks = true;
-                }
+                });
+                ui.spacing();
+                ui.child_frame(im_str!("Craft Frame"), [0.0, FOOTER_H])
+                    .build(|| {
+                        // Only show the craft button if we have tasks added
+                        if !config.tasks.is_empty() && ui.button(im_str!("Craft Tasks"), [0.0, 0.0])
+                        {
+                            if write_config(config).is_err() {
+                                log::error!("failed to write config");
+                            }
+                            state.exit_gui = true;
+                        }
+                    });
             });
 
         // If we return a |true| value the main_loop will know to bail out and start crafting.
-        state.return_tasks
+        state.exit_gui
     }
 
     fn draw_task<'b>(ui: &imgui::Ui<'b>, ui_id: i32, task: &mut Task, macros: &[ImString]) -> bool {
@@ -282,7 +292,6 @@ impl<'a> Gui<'a> {
         // Right side window
         ui.window(im_str!("Preferences"))
             .always_auto_resize(true)
-            .size([CONFIG_W, CONFIG_H], Condition::FirstUseEver)
             .opened(&mut state.show_config_window)
             .build(|| {
                 if ui
