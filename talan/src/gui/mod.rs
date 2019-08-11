@@ -5,6 +5,8 @@ use failure::Error;
 use gui_support;
 use imgui::*;
 use std::cmp::max;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 
 const WINDOW_W: f32 = 400.0;
 const WINDOW_H: f32 = 700.0;
@@ -21,6 +23,7 @@ struct UiState {
     exit_gui: bool,
     task_to_remove: Option<i32>,
     task_to_move: Option<(i32, i32)>, // index, offset (-1, +1)
+    searching: bool,
 }
 
 impl Default for UiState {
@@ -34,6 +37,50 @@ impl Default for UiState {
             exit_gui: false,
             task_to_remove: None,
             task_to_move: None,
+            searching: false,
+        }
+    }
+}
+
+fn xivapi_thread(rx: Receiver<(String, u32)>, tx: Sender<Option<Task>>) {
+    log::trace!("xivapi thread started");
+    loop {
+        if let Ok(query) = rx.recv() {
+            log::debug!(
+                "xivapi worker received: '{}' for {}",
+                query.0,
+                xiv::JOBS[query.1 as usize]
+            );
+            match xivapi::get_recipe_for_job(&query.0, query.1) {
+                Ok(r) => {
+                    log::trace!("recipe result is: {:#?}", r);
+                    match r {
+                        Some(recipe) => {
+                            let task = Task {
+                                quantity: 1,
+                                is_collectable: false,
+                                use_any_mats: true,
+                                // Initialize the material qualities to be NQ for everything
+                                mat_quality: recipe
+                                    .mats
+                                    .iter()
+                                    .map(|m| MaterialCount { nq: m.count, hq: 0 })
+                                    .collect(),
+                                recipe,
+                                macro_id: 0,
+                            };
+                            tx.send(Some(task));
+                        }
+                        None => {
+                            tx.send(None);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("xivapi error fetching recipe: {}", e.to_string());
+                    tx.send(None);
+                }
+            }
         }
     }
 }
@@ -42,10 +89,18 @@ pub struct Gui {
     state: UiState,
     macro_labels: Vec<ImString>,
     job_labels: Vec<ImString>,
+    search_tx: Sender<(String, u32)>,
+    task_rx: Receiver<Option<Task>>,
+    xivapi_thrd: thread::JoinHandle<()>,
 }
 
 impl<'a> Gui {
     pub fn new(macros: &'a [MacroFile]) -> Gui {
+        let (search_tx, search_rx): (Sender<(String, u32)>, Receiver<(String, u32)>) = channel();
+        let (task_tx, task_rx): (Sender<Option<Task>>, Receiver<Option<Task>>) = channel();
+        let xivapi_thrd = thread::spawn(move || {
+            xivapi_thread(search_rx, task_tx);
+        });
         Gui {
             state: UiState::default(),
             macro_labels: macros
@@ -53,6 +108,9 @@ impl<'a> Gui {
                 .map(|m| ImString::new(m.name.clone()))
                 .collect(),
             job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
+            search_tx,
+            task_rx,
+            xivapi_thrd,
         }
     }
 
@@ -89,35 +147,21 @@ impl<'a> Gui {
             }
 
             if self.state.add_task_button_clicked {
-                // Search for the recipe via XIVAPI. If we find it, create a backing task for it and
-                // add it to our tasks.
-                match xivapi::get_recipe_for_job(
-                    self.state.search_str.to_str(),
-                    self.state.search_job as u32,
-                ) {
-                    Ok(v) => {
-                        log::trace!("recipe result is: {:#?}", v);
-                        if let Some(recipe) = v {
-                            let task = Task {
-                                quantity: 1,
-                                is_collectable: false,
-                                use_any_mats: true,
-                                // Initialize the material qualities to be NQ for everything
-                                mat_quality: recipe
-                                    .mats
-                                    .iter()
-                                    .map(|m| MaterialCount { nq: m.count, hq: 0 })
-                                    .collect(),
-                                recipe,
-                                macro_id: 0,
-                            };
-                            config.tasks.push(task);
-                        }
-                    }
-                    Err(e) => println!("Error fetching recipe: {}", e.to_string()),
+                if !self.state.searching {
+                    self.search_tx.send((
+                        self.state.search_str.to_string(),
+                        self.state.search_job as u32,
+                    ));
+                    self.state.searching = true;
                 }
 
-                self.state.add_task_button_clicked = false;
+                if let Ok(t) = self.task_rx.try_recv() {
+                    if let Some(task) = t {
+                        config.tasks.push(task);
+                    }
+                    self.state.searching = false;
+                    self.state.add_task_button_clicked = false;
+                }
             }
         });
 
@@ -179,9 +223,12 @@ impl<'a> Gui {
                             {
                                 state.add_task_button_clicked = true;
                             }
-                            ui.same_line(0.0);
-                            if ui.button(im_str!("Add"), [0.0, 0.0]) {
-                                state.add_task_button_clicked = true;
+
+                            if !state.add_task_button_clicked {
+                                ui.same_line(0.0);
+                                if ui.button(im_str!("Add"), [0.0, 0.0]) {
+                                    state.add_task_button_clicked = true;
+                                }
                             }
                         }
                     });
