@@ -75,8 +75,9 @@ fn main() -> Result<(), Error> {
         return debug2_test(handle, &cfg);
     }
 
-    let mut gui = gui::Gui::new(&macros);
+
     loop {
+        let mut gui = gui::Gui::new(&macros);
         if !gui.start(&mut cfg)? {
             break;
         }
