@@ -59,7 +59,7 @@ pub fn init(width: f64, height: f64, title: &str) -> System {
             size_pixels: font_size,
             config: Some(FontConfig {
                 rasterizer_multiply: 1.75,
-                glyph_ranges: FontGlyphRanges::japanese(),
+                glyph_ranges: FontGlyphRanges::default(),
                 ..FontConfig::default()
             }),
         },

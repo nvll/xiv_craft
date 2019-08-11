@@ -19,7 +19,8 @@ struct UiState {
     search_str: ImString,
     search_job: i32,
     exit_gui: bool,
-    task_to_remove: Option<usize>,
+    task_to_remove: Option<i32>,
+    task_to_move: Option<(i32, i32)>, // index, offset (-1, +1)
 }
 
 impl Default for UiState {
@@ -32,6 +33,7 @@ impl Default for UiState {
             search_job: 0,
             exit_gui: false,
             task_to_remove: None,
+            task_to_move: None,
         }
     }
 }
@@ -75,8 +77,15 @@ impl<'a> Gui {
             }
 
             if let Some(id) = self.state.task_to_remove {
-                config.tasks.remove(id);
+                config.tasks.remove(id as usize);
                 self.state.task_to_remove = None;
+            }
+
+            if let Some((t_id, offset)) = self.state.task_to_move {
+                let pos = (t_id + offset) as usize;
+                let task = config.tasks.remove(t_id as usize);
+                config.tasks.insert(pos, task);
+                self.state.task_to_move = None;
             }
 
             if self.state.add_task_button_clicked {
@@ -184,10 +193,9 @@ impl<'a> Gui {
                 .build(|| {
                     // Both Tasks and their materials are enumerated so we can generate unique
                     // UI ids for widgets and prevent any sort of UI clash.
-                    for (ui_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
-                        if !Gui::draw_task(ui, ui_id as i32, &mut t, macros) {
-                            state.task_to_remove = Some(ui_id);
-                        }
+                    let task_len = config.tasks.len();
+                    for (task_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
+                        Gui::draw_task(ui, state, task_len as i32, task_id as i32, &mut t, macros);
                     }
                 });
                 ui.spacing();
@@ -209,8 +217,15 @@ impl<'a> Gui {
         state.exit_gui
     }
 
-    fn draw_task<'b>(ui: &imgui::Ui<'b>, ui_id: i32, task: &mut Task, macros: &[ImString]) -> bool {
-        ui.push_id(ui_id);
+    fn draw_task<'b>(
+        ui: &imgui::Ui<'b>,
+        state: &mut UiState,
+        task_cnt: i32,
+        task_id: i32,
+        task: &mut Task,
+        macros: &[ImString],
+    ) {
+        ui.push_id(task_id);
         // header should be closeable
         let header_name = ImString::new(format!(
             "[{} {}] {}x {} {}",
@@ -233,11 +248,6 @@ impl<'a> Gui {
                 "{} Durability  {} Difficulty  {} Quality",
                 task.recipe.durability, task.recipe.difficulty, task.recipe.quality
             ));
-            ui.same_line(ui.get_window_size()[0] - 15.0);
-            if ui.small_button(im_str!("x")) {
-                ui.pop_id();
-                return false;
-            }
             ui.checkbox(
                 im_str!("Use materials of any quality"),
                 &mut task.use_any_mats,
@@ -293,10 +303,23 @@ impl<'a> Gui {
                 ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
             };
             gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &macros);
+            if task_id > 0 {
+                if ui.small_button(im_str!("up")) {
+                    state.task_to_move = Some((task_id, -1));
+                }
+                ui.same_line(0.0);
+            }
+            if task_id < task_cnt - 1 {
+                if ui.small_button(im_str!("down")) {
+                    state.task_to_move = Some((task_id, 1));
+                }
+                ui.same_line(0.0);
+            }
+            if ui.small_button(im_str!("delete")) {
+                state.task_to_remove = Some(task_id);
+            }
         }
         ui.pop_id();
-
-        true
     }
 
     fn draw_config_window(ui: &imgui::Ui, config: &mut config::Config, state: &mut UiState) {
