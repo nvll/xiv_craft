@@ -10,6 +10,7 @@ use xiv::ui;
 // Milliseconds to pad the GCD to account for latency
 const GCD_PADDING: u64 = 250;
 
+// pub fn start_craft_worker(tx: Sender<Vec<TaskStatus>>, rx: Receiver<Vec<Task>>, cfg: Config, macros
 // Runs through the set of tasks
 pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
     // Get the UI into a state we can trust it, and pray the user doesn't touch it.

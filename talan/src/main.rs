@@ -2,15 +2,18 @@ mod config;
 mod craft;
 mod gui;
 mod macros;
+mod recipe;
+mod rpc;
 mod task;
 
 use clap::{App, Arg};
 use config::write_config;
 use craft::craft_items;
 use failure::Error;
+use rpc::{Request, Response, Worker};
 use simple_logger;
-use task::{MaterialCount, Task};
-use xivapi::get_recipe_for_job;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 
 fn main() -> Result<(), Error> {
     let matches =
@@ -77,16 +80,11 @@ fn main() -> Result<(), Error> {
     }
 
     let mut handle = xiv::init()?;
-    if matches.subcommand_matches("debug1").is_some() {
-        return debug1_test(handle, &cfg);
-    }
-
-    if matches.subcommand_matches("debug2").is_some() {
-        return debug2_test(handle, &cfg);
-    }
-
+    let (client_tx, worker_rx): (Sender<Request>, Receiver<Request>) = channel();
+    let (worker_tx, client_rx): (Sender<Response>, Receiver<Response>) = channel();
+    thread::spawn(move || Worker::new(worker_rx, worker_tx).worker_thread());
     loop {
-        let mut gui = gui::Gui::new(&macros);
+        let mut gui = gui::Gui::new(&macros, &client_tx, &client_rx);
         if !gui.start(&mut cfg)? {
             break;
         }
@@ -95,39 +93,5 @@ fn main() -> Result<(), Error> {
         craft_items(handle, &cfg, &macros[..]);
     }
     println!("exiting...");
-    Ok(())
-}
-
-fn debug1_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
-    if let Some(recipe) = get_recipe_for_job("iron ingot", 1 /* BSM */)? {
-        let task = Task {
-            quantity: 1,
-            is_collectable: false,
-            recipe,
-            use_any_mats: true,
-            mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
-            macro_id: 0,
-        };
-        craft::change_gearset(handle, cfg.gear[task.recipe.job as usize]);
-        craft::select_recipe(handle, &task);
-    }
-    Ok(())
-}
-
-// Used for testing general UI functionality
-fn debug2_test(handle: xiv::XivHandle, cfg: &config::Config) -> Result<(), Error> {
-    if let Some(recipe) = get_recipe_for_job("clOud PeArl", 0 /* CRP */)? {
-        let task = Task {
-            quantity: 1,
-            is_collectable: false,
-            recipe,
-            use_any_mats: true,
-            mat_quality: vec![MaterialCount { nq: 4, hq: 0 }],
-            macro_id: 0,
-        };
-        craft::change_gearset(handle, cfg.gear[task.recipe.job as usize]);
-        craft::toggle_collectable(handle);
-        craft::select_recipe(handle, &task);
-    }
     Ok(())
 }

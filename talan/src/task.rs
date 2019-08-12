@@ -1,5 +1,5 @@
+use crate::recipe::Recipe;
 use serde::{Deserialize, Serialize};
-use xivapi;
 
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct MaterialCount {
@@ -8,9 +8,7 @@ pub struct MaterialCount {
 }
 
 // A task represents crafting a specific item a given number of times
-// using a provided recipe and macro. mat_quality is a specific field
-// separate from Recipe because the Recipe type is from an external
-// crate.
+// using a provided recipe and macro.
 #[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Task {
     pub use_any_mats: bool,
@@ -18,5 +16,40 @@ pub struct Task {
     pub macro_id: i32,
     pub mat_quality: Vec<MaterialCount>,
     pub quantity: i32, // number of items to craft
-    pub recipe: xivapi::Recipe,
+    pub recipe: Recipe,
+}
+
+impl Task {
+    pub fn new(recipe: Recipe) -> Task {
+        Task {
+            use_any_mats: true,
+            is_collectable: false,
+            macro_id: 0,
+            quantity: 1,
+            mat_quality: recipe
+                .mats
+                .iter()
+                .map(|m| MaterialCount { nq: m.count, hq: 0 })
+                .collect(),
+            recipe,
+        }
+    }
+}
+
+// Used to represent the status of a Task being executed by the crafting
+// engine.
+pub struct TaskStatus {
+    pub name: String,
+    pub finished: u32,
+    pub total: u32,
+}
+
+impl From<Task> for TaskStatus {
+    fn from(task: Task) -> Self {
+        TaskStatus {
+            name: task.recipe.name.clone(),
+            finished: 0,
+            total: task.quantity as u32,
+        }
+    }
 }

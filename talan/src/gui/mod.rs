@@ -1,12 +1,12 @@
 use crate::config::{self, write_config};
 use crate::macros::MacroFile;
-use crate::task::{MaterialCount, Task};
+use crate::rpc::{Request, Response};
+use crate::task::Task;
 use failure::Error;
 use gui_support;
 use imgui::*;
 use std::cmp::{max, min};
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::thread;
+use std::sync::mpsc::{Receiver, Sender};
 
 const WINDOW_W: f32 = 400.0;
 const WINDOW_H: f32 = 700.0;
@@ -34,11 +34,6 @@ struct UiState {
     searching: bool,
 }
 
-struct QueryRpc {
-    item: String,
-    job: u32,
-}
-
 impl Default for UiState {
     fn default() -> UiState {
         UiState {
@@ -55,65 +50,20 @@ impl Default for UiState {
     }
 }
 
-fn xivapi_thread(rx: Receiver<QueryRpc>, tx: Sender<Option<Task>>) {
-    log::trace!("xivapi thread started");
-    loop {
-        if let Ok(query) = rx.recv() {
-            log::debug!(
-                "xivapi worker received: '{}' for {}",
-                query.item,
-                xiv::JOBS[query.job as usize]
-            );
-            match xivapi::get_recipe_for_job(&query.item, query.job) {
-                Ok(r) => {
-                    log::trace!("recipe result is: {:#?}", r);
-                    match r {
-                        Some(recipe) => {
-                            let task = Task {
-                                quantity: 1,
-                                is_collectable: false,
-                                use_any_mats: true,
-                                // Initialize the material qualities to be NQ for everything
-                                mat_quality: recipe
-                                    .mats
-                                    .iter()
-                                    .map(|m| MaterialCount { nq: m.count, hq: 0 })
-                                    .collect(),
-                                recipe,
-                                macro_id: 0,
-                            };
-                            tx.send(Some(task)).unwrap();
-                        }
-                        None => {
-                            tx.send(None).unwrap();
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("xivapi error fetching recipe: {}", e.to_string());
-                    tx.send(None).unwrap();
-                }
-            }
-        }
-    }
-}
-
-pub struct Gui {
+pub struct Gui<'g> {
     state: UiState,
     macro_labels: Vec<ImString>,
     job_labels: Vec<ImString>,
-    search_tx: Sender<QueryRpc>,
-    task_rx: Receiver<Option<Task>>,
-    _xivapi_thrd: thread::JoinHandle<()>,
+    rpc_tx: &'g Sender<Request>,
+    rpc_rx: &'g Receiver<Response>,
 }
 
-impl<'a> Gui {
-    pub fn new(macros: &'a [MacroFile]) -> Gui {
-        let (search_tx, search_rx): (Sender<QueryRpc>, Receiver<QueryRpc>) = channel();
-        let (task_tx, task_rx): (Sender<Option<Task>>, Receiver<Option<Task>>) = channel();
-        let _xivapi_thrd = thread::spawn(move || {
-            xivapi_thread(search_rx, task_tx);
-        });
+impl<'g> Gui<'g> {
+    pub fn new(
+        macros: &'g [MacroFile],
+        rpc_tx: &'g Sender<Request>,
+        rpc_rx: &'g Receiver<Response>,
+    ) -> Gui<'g> {
         Gui {
             state: UiState::default(),
             macro_labels: macros
@@ -121,9 +71,8 @@ impl<'a> Gui {
                 .map(|m| ImString::new(m.name.clone()))
                 .collect(),
             job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
-            search_tx,
-            task_rx,
-            _xivapi_thrd,
+            rpc_tx,
+            rpc_rx,
         }
     }
 
@@ -161,8 +110,8 @@ impl<'a> Gui {
 
             if self.state.add_task_button_clicked {
                 if !self.state.searching {
-                    self.search_tx
-                        .send(QueryRpc {
+                    self.rpc_tx
+                        .send(Request::Recipe {
                             item: self.state.search_str.to_string(),
                             job: self.state.search_job as u32,
                         })
@@ -170,9 +119,9 @@ impl<'a> Gui {
                     self.state.searching = true;
                 }
 
-                if let Ok(t) = self.task_rx.try_recv() {
-                    if let Some(task) = t {
-                        config.tasks.push(task);
+                if let Ok(r) = self.rpc_rx.try_recv() {
+                    if let Response::Recipe(Some(recipe)) = r {
+                        config.tasks.push(Task::new(recipe));
                     }
                     self.state.searching = false;
                     self.state.add_task_button_clicked = false;
