@@ -148,7 +148,7 @@ impl ApiRecipe {
         let links = self
             .GameContentLinks
             .clone()
-            .ok_or(format_err!("No GameContentLinks"))?;
+            .ok_or_else(|| format_err!("No GameContentLinks"))?;
 
         // RecipeNotebookList is organized into rows and columns. Below
         // represents column 9 in row 1053.
@@ -167,7 +167,7 @@ impl ApiRecipe {
         let row = links
             .RecipeNotebookList
             .get(column_str)
-            .ok_or(format_err!("Can't get column {}", column_str))?[0];
+            .ok_or_else(|| (format_err!("Can't get column {}", column_str)))?[0];
 
         Ok((
             self.CraftType.ID,
@@ -371,7 +371,8 @@ mod test {
         setup();
 
         // 1 == WVR.  We hard code it here to avoid a dependency on xiv.
-        let r = get_recipe_for_job("cloud pearl", 1)?.ok_or(format_err!("Query returned None"))?;
+        let r = get_recipe_for_job("cloud pearl", 1)?
+            .ok_or_else(|| format_err!("Query returned None"))?;
         assert_eq!(r.name, "Cloud Pearl");
         assert_eq!(r.index, 3);
 

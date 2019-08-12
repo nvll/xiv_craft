@@ -15,15 +15,28 @@ const FOOTER_H: f32 = 25.0;
 
 #[derive(Debug)]
 struct UiState {
+    // |true| if the preferences window is shown.
     show_config_window: bool,
+    // |true| if we're leaving the gui becaue the user pressed 'craft'.
     craft_button_clicked: bool,
+    // Whether a task add was triggered via the button or enter in the text box.
     add_task_button_clicked: bool,
+    // The item search string.
     search_str: ImString,
+    // The job dropdown selection.
     search_job: i32,
+    // If we should leave the gui main loop.
     exit_gui: bool,
+    // These are used to track a task that should be modified in the list.
     task_to_remove: Option<i32>,
     task_to_move: Option<(i32, i32)>, // index, offset (-1, +1)
+    // |true| when a request has been sent to the xivapi worker thread.
     searching: bool,
+}
+
+struct QueryRpc {
+    item: String,
+    job: u32,
 }
 
 impl Default for UiState {
@@ -42,16 +55,16 @@ impl Default for UiState {
     }
 }
 
-fn xivapi_thread(rx: Receiver<(String, u32)>, tx: Sender<Option<Task>>) {
+fn xivapi_thread(rx: Receiver<QueryRpc>, tx: Sender<Option<Task>>) {
     log::trace!("xivapi thread started");
     loop {
         if let Ok(query) = rx.recv() {
             log::debug!(
                 "xivapi worker received: '{}' for {}",
-                query.0,
-                xiv::JOBS[query.1 as usize]
+                query.item,
+                xiv::JOBS[query.job as usize]
             );
-            match xivapi::get_recipe_for_job(&query.0, query.1) {
+            match xivapi::get_recipe_for_job(&query.item, query.job) {
                 Ok(r) => {
                     log::trace!("recipe result is: {:#?}", r);
                     match r {
@@ -69,16 +82,16 @@ fn xivapi_thread(rx: Receiver<(String, u32)>, tx: Sender<Option<Task>>) {
                                 recipe,
                                 macro_id: 0,
                             };
-                            tx.send(Some(task));
+                            tx.send(Some(task)).unwrap();
                         }
                         None => {
-                            tx.send(None);
+                            tx.send(None).unwrap();
                         }
                     }
                 }
                 Err(e) => {
                     log::error!("xivapi error fetching recipe: {}", e.to_string());
-                    tx.send(None);
+                    tx.send(None).unwrap();
                 }
             }
         }
@@ -89,16 +102,16 @@ pub struct Gui {
     state: UiState,
     macro_labels: Vec<ImString>,
     job_labels: Vec<ImString>,
-    search_tx: Sender<(String, u32)>,
+    search_tx: Sender<QueryRpc>,
     task_rx: Receiver<Option<Task>>,
-    xivapi_thrd: thread::JoinHandle<()>,
+    _xivapi_thrd: thread::JoinHandle<()>,
 }
 
 impl<'a> Gui {
     pub fn new(macros: &'a [MacroFile]) -> Gui {
-        let (search_tx, search_rx): (Sender<(String, u32)>, Receiver<(String, u32)>) = channel();
+        let (search_tx, search_rx): (Sender<QueryRpc>, Receiver<QueryRpc>) = channel();
         let (task_tx, task_rx): (Sender<Option<Task>>, Receiver<Option<Task>>) = channel();
-        let xivapi_thrd = thread::spawn(move || {
+        let _xivapi_thrd = thread::spawn(move || {
             xivapi_thread(search_rx, task_tx);
         });
         Gui {
@@ -110,12 +123,12 @@ impl<'a> Gui {
             job_labels: xiv::JOBS.iter().map(|&j| ImString::new(j)).collect(),
             search_tx,
             task_rx,
-            xivapi_thrd,
+            _xivapi_thrd,
         }
     }
 
     pub fn start(&mut self, mut config: &mut config::Config) -> Result<bool, Error> {
-        let system = gui_support::init(WINDOW_W as f64, WINDOW_H as f64, "Talan");
+        let system = gui_support::init(f64::from(WINDOW_W), f64::from(WINDOW_H), "Talan");
 
         // Due to the way borrowing and closures work, most of the rendering impl
         // borrow inner members of our GUI state and are otherwise not methods.
@@ -148,10 +161,12 @@ impl<'a> Gui {
 
             if self.state.add_task_button_clicked {
                 if !self.state.searching {
-                    self.search_tx.send((
-                        self.state.search_str.to_string(),
-                        self.state.search_job as u32,
-                    ));
+                    self.search_tx
+                        .send(QueryRpc {
+                            item: self.state.search_str.to_string(),
+                            job: self.state.search_job as u32,
+                        })
+                        .unwrap();
                     self.state.searching = true;
                 }
 
@@ -209,8 +224,8 @@ impl<'a> Gui {
                             gui_support::combobox(ui, im_str!("Job"), &mut state.search_job, &jobs);
                         }
                         ui.same_line(0.0);
-                        // Both pressing enter in the item textbox and pressing the add button should
-                        // register a recipe lookup.
+                        // Both pressing enter in the item textbox and pressing
+                        // the add button should register a recipe lookup.
                         {
                             let _width = ui.push_item_width(200.0);
                             if ui
