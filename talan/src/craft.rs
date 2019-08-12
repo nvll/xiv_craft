@@ -81,12 +81,6 @@ pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
     // Bring up the crafting window itself and give it time to appear
     open_craft_window(handle);
     log::info!("selecting recipe...");
-    // Loop backward through the UI 9 times to ensure we hit the text box
-    // no matter what crafting class we are. The text input boxes are strangely
-    // modal so that if we select them at any point they will hold on to focus
-    // for characters.
-    //
-    // Move left
     // The crafting window always starts with the current job selected and if we press
     // |BACK| 1 more time than the job's index then we will end up at the search box.
     for _ in 0..=task.recipe.job + 1 {
@@ -106,23 +100,17 @@ pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
     ui::press_confirm(handle);
 }
 
-pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
-    if !task.use_any_mats {
-        // If there are no HQ mats we can fast path this by just
-        // starting the synthesis.
-        if task.mat_quality.iter().fold(0, |acc, &mat| acc + mat.hq) == 0 {
-            return;
-        }
-    }
-
+pub fn select_any_materials(handle: xiv::XivHandle, task: &Task) {
+    // Up to the icon for the bottom material
     ui::cursor_up(handle);
-    // TODO implement HQ > NQ
+    // Right to the NQ column
     ui::cursor_right(handle);
+    // Right to the HQ column
     ui::cursor_right(handle);
 
     // The cursor should be on the quantity field of the bottom item now
     // We move through the ingredients backwards because we start at the bottom of t
-    for (i, material) in task.recipe.mats.iter().enumerate().rev() {
+    for (i, material) in task.recipe.mats.iter().rev().enumerate() {
         log::trace!("{}x {}", material.count, material.name);
         for _ in 0..material.count {
             ui::press_confirm(handle)
@@ -138,6 +126,45 @@ pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
             ui::press_confirm(handle)
         }
         ui::cursor_down(handle);
+    }
+}
+
+pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
+    if task.use_any_mats {
+        return select_any_materials(handle, task);
+    }
+
+    let mut hq_mats = task.mat_quality.iter().fold(0, |acc, &mat| acc + mat.hq);
+    // If there are no HQ mats we can fast path this by just
+    // starting the synthesis.
+    if hq_mats == 0 {
+        return;
+    }
+
+    // Up to the icon for the bottom material
+    ui::cursor_up(handle);
+    // Right to the NQ column
+    ui::cursor_right(handle);
+    // Right to the HQ column
+    ui::cursor_right(handle);
+
+    // Move up the HQ column and increase the HQ count per the task
+    // values. Once there are none left we can shortcut back to the
+    // confirm button.
+    for (i, mq) in task.mat_quality.iter().rev().enumerate() {
+        for _ in 0..mq.hq {
+            ui::press_confirm(handle);
+        }
+
+        hq_mats -= mq.hq;
+        if hq_mats > 0 {
+            ui::cursor_up(handle);
+        } else {
+            for _ in 0..=i {
+                ui::cursor_down(handle);
+            }
+            break;
+        }
     }
 }
 
