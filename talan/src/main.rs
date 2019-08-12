@@ -42,7 +42,17 @@ fn main() -> Result<(), Error> {
     simple_logger::init_with_level(level)?;
 
     // These are only read at startup.
-    let macros = macros::get_macro_list()?;
+    let macros = match macros::get_macro_list() {
+        Ok(m) => m,
+        Err(e) => {
+            log::error!(
+                "Couldn't open macros directory for reading: {}",
+                e.to_string()
+            );
+            return Ok(()); // counter-intuitive, but we want to suppress additional messages.
+        }
+    };
+
     log::info!("Scanning macros:");
     for m in &macros {
         log::info!("\t{}", m.name);
