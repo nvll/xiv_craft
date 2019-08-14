@@ -66,7 +66,7 @@ struct Retainer {
 
 impl Retainer {
     fn new(id: u64, args: &Opts) -> Retainer {
-        let period = Duration::from_secs(retainer_id_to_period(id, args) * 60);
+        let period = Duration::from_secs((retainer_id_to_period(id, args) * 60) + 30);
         Retainer {
             id,
             period,
