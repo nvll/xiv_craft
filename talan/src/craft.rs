@@ -111,12 +111,12 @@ pub fn select_any_materials(handle: xiv::XivHandle, task: &Task) {
     // The cursor should be on the quantity field of the bottom item now
     // We move through the ingredients backwards because we start at the bottom of t
     for (i, material) in task.recipe.mats.iter().rev().enumerate() {
-        log::trace!("{}x {}", material.count, material.name);
+        log::debug!("{}x {}", material.count, material.name);
         for _ in 0..material.count {
             ui::press_confirm(handle)
         }
         // Don't move up if we've made it back to the top of the ingredients
-        if i != 0 {
+        if i != task.recipe.mats.len() - 1 {
             ui::cursor_up(handle);
         }
     }
