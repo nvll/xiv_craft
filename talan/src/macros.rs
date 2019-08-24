@@ -3,14 +3,14 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MacroFile {
     pub name: String,
     pub path: PathBuf,
     pub actions: Vec<Action>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Action {
     pub name: String,
     pub wait: u64,

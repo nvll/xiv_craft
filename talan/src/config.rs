@@ -1,73 +1,62 @@
 use crate::task::Task;
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
 
-// This module handles all configuration management for Talan.
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Options {
-    pub reload_tasks: bool,
-    pub use_slow_navigation: bool,
-}
-
-impl Default for Options {
-    fn default() -> Options {
-        Options {
-            reload_tasks: true,
-            use_slow_navigation: false,
-        }
-    }
-}
-
-#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
-pub struct Config {
     // Stored as i32 because imgui doesn't bind to unsigned ints.
     #[serde(default)]
     pub gear: [i32; xiv::JOB_CNT],
     #[serde(default)]
     pub non_doh_gear: i32,
     #[serde(default)]
+    pub reload_tasks: bool,
+    #[serde(default)]
+    pub use_slow_navigation: bool,
+}
+
+// Placeholder.
+#[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct Macro {}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct Config {
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
     pub options: Options,
     #[serde(default)]
     pub tasks: Vec<Task>,
+    #[serde(default)]
+    pub macros: Vec<Macro>,
 }
 
-const CONFIG_PATH: &str = "config.json";
+pub const DEFAULT_CONFIG_FILE: &str = "config.json";
 
-// Reads the config from disk. Returns a default config
-// if one cannot be found.
-pub fn read_config() -> Config {
-    read_config_internal(Path::new(CONFIG_PATH))
+pub fn get_config(path: Option<&Path>) -> Config {
+    let p = path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_FILE));
+    read_config(p).unwrap_or_else(|e| {
+        log::info!(
+            "Unable to open {} ({}), creating a new default config.",
+            p.display(),
+            e.to_string()
+        );
+        Config::default()
+    })
+}
+
+// Reads the config from disk. Returns a default config if one cannot be found.
+pub fn read_config(path: &Path) -> Result<Config, Error> {
+    Ok(serde_json::from_str::<Config>(&std::fs::read_to_string(
+        path,
+    )?)?)
 }
 
 // Writes |cfg| to disk.
-pub fn write_config(cfg: &Config) -> Result<(), Error> {
-    write_config_internal(cfg, Path::new(CONFIG_PATH))
-}
-
-fn read_config_internal(path: &Path) -> Config {
-    match read_config_from_file(path) {
-        Ok(c) => c,
-        Err(_) => {
-            println!("Config not found, creating a new one!");
-            Config::default()
-        }
-    }
-}
-
-fn read_config_from_file(path: &Path) -> Result<Config, Error> {
-    let mut contents = String::new();
-    let mut f = File::open(path)?;
-    f.read_to_string(&mut contents)?;
-    Ok(serde_json::from_str(&contents)?)
-}
-
-fn write_config_internal(cfg: &Config, path: &Path) -> Result<(), Error> {
-    let mut f = File::create(path)?;
-    f.write_all(serde_json::to_string_pretty(&cfg)?.as_bytes())
-        .unwrap();
+pub fn write_config(path: Option<&Path>, cfg: &Config) -> Result<(), Error> {
+    let p = path.unwrap_or_else(|| Path::new(DEFAULT_CONFIG_FILE));
+    std::fs::write(p, serde_json::to_string_pretty(&cfg)?.as_bytes())?;
     Ok(())
 }
 
@@ -80,24 +69,23 @@ mod tests {
     fn test_write_and_read() -> Result<(), Error> {
         let file = NamedTempFile::new()?;
         let mut c1 = Config::default();
-        c1.gear[0] = 1;
-        c1.gear[1] = 2;
-        c1.gear[2] = 3;
-        c1.gear[3] = 4;
-        c1.gear[4] = 5;
-        c1.gear[5] = 6;
-        c1.gear[6] = 7;
-        c1.gear[7] = 8;
-        assert!(write_config_internal(&c1, file.path()).is_ok());
-        let c2 = read_config_internal(file.path());
+        c1.options.gear[0] = 1;
+        c1.options.gear[1] = 2;
+        c1.options.gear[2] = 3;
+        c1.options.gear[3] = 4;
+        c1.options.gear[4] = 5;
+        c1.options.gear[5] = 6;
+        c1.options.gear[6] = 7;
+        c1.options.gear[7] = 8;
+        assert!(write_config(Some(file.path()), &c1).is_ok());
+        let c2 = read_config(file.path())?;
         assert_eq!(c1, c2);
         Ok(())
     }
 
     #[test]
     fn test_default_config() -> Result<(), Error> {
-        let file = NamedTempFile::new()?;
-        assert_eq!(read_config_internal(file.path()), Config::default());
+        assert_eq!(get_config(None), Config::default());
         Ok(())
     }
 }

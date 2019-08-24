@@ -1,7 +1,7 @@
 //use crate::role_actions::RoleActions;
-use crate::config::Config;
+use crate::config::Options;
 use crate::macros::{Action, MacroFile};
-use crate::task::Task;
+use crate::task;
 use log;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -10,28 +10,40 @@ use xiv::ui;
 // Milliseconds to pad the GCD to account for latency
 const GCD_PADDING: u64 = 250;
 
-// pub fn start_craft_worker(tx: Sender<Vec<TaskStatus>>, rx: Receiver<Vec<Task>>, cfg: Config, macros
-// Runs through the set of tasks
-pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
+// Craft all the configured tasks and update the client by way of |status_callback|.
+pub fn craft_items<'a, F, S>(
+    handle: xiv::XivHandle,
+    options: &'a Options,
+    tasks: &[task::Task],
+    macros: &[MacroFile],
+    mut status_fn: F,
+    mut continue_fn: S,
+) where
+    F: FnMut(&[task::Status]),
+    S: FnMut() -> bool,
+{
+    // Initialize the crafting status and send an initialize slice
+    // so the UI knows what to start rendering.
+    let mut status: Vec<task::Status> = tasks.iter().map(task::Status::from).collect();
+    status_fn(&status[..]);
+
     // Get the UI into a state we can trust it, and pray the user doesn't touch it.
     ui::clear_window(handle);
 
     // Clear role actions before we iterate tasks so the game state
     // and role action state will be in sync.
     let mut job: u32 = 256;
-    let mut _gearset: u64 = 0;
-    let mut _first_task: bool = true;
-
-    if cfg.non_doh_gear != 0 {
-        change_gearset(handle, cfg.non_doh_gear);
+    if options.non_doh_gear != 0 {
+        change_gearset(handle, options.non_doh_gear);
         ui::wait(1.0);
     }
 
-    for task in &cfg.tasks {
+    let mut stop: bool = false;
+    for (i, task) in tasks.iter().enumerate() {
         log::trace!("Task: {:?}", task);
         let task_job: usize = task.recipe.job as usize;
 
-        if cfg.gear[task_job] == 0 {
+        if options.gear[task_job] == 0 {
             panic!(
                 "No gear set is configured for {}, aborting tasks!",
                 xiv::JOBS[task_job]
@@ -41,13 +53,13 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
         // Swap our job if necessary. It may have been used in the previous task.
         if job != task.recipe.job {
             log::trace!("changing job to {}.", xiv::JOBS[task_job]);
-            change_gearset(handle, cfg.gear[task_job]);
+            change_gearset(handle, options.gear[task_job]);
             // If we don't wait here we might bring the window up before
             // the job has changed, leading to the wrong class seeding the
             // window's mode.
             ui::wait(1.0);
 
-            job = task.recipe.job
+            job = task.recipe.job;
         } else {
             log::trace!("already {}, no need to change job.", xiv::JOBS[task_job]);
         }
@@ -59,14 +71,38 @@ pub fn craft_items(handle: xiv::XivHandle, cfg: &Config, macros: &[MacroFile]) {
         // Navigate to the correct recipe based on the index provided
         select_recipe(handle, &task);
 
-        // Time to craft the items
-        execute_task(handle, &task, &macros[task.macro_id as usize].actions[..]);
+        for task_index in 1..=task.quantity {
+            log::info!(
+                "crafting {} {}/{}",
+                task.recipe.name,
+                task_index,
+                task.quantity
+            );
+            // Time to craft the items
+            execute_task(handle, &task, &macros[task.macro_id as usize].actions[..]);
+            {
+                status[i].finished += 1;
+            }
+
+            status_fn(&status[..]);
+            // Check if we received a message to stop from the main thread.
+            if !continue_fn() {
+                log::info!("Received stop order");
+                stop = true;
+                break;
+            }
+            ui::wait(2.0);
+        }
 
         ui::press_escape(handle);
         ui::wait(2.0);
 
         if task.is_collectable {
             toggle_collectable(handle);
+        }
+
+        if stop {
+            break;
         }
     }
 }
@@ -78,7 +114,7 @@ pub fn open_craft_window(handle: xiv::XivHandle) {
 
 // Selects the appropriate recipe then leaves the cursor on the Synthesize
 // button, ready for material selection.
-pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
+pub fn select_recipe(handle: xiv::XivHandle, task: &task::Task) {
     // Bring up the crafting window itself and give it time to appear
     open_craft_window(handle);
     log::info!("selecting recipe...");
@@ -101,7 +137,7 @@ pub fn select_recipe(handle: xiv::XivHandle, task: &Task) {
     ui::press_confirm(handle);
 }
 
-pub fn select_any_materials(handle: xiv::XivHandle, task: &Task) {
+pub fn select_any_materials(handle: xiv::XivHandle, task: &task::Task) {
     // Up to the icon for the bottom material
     ui::cursor_up(handle);
     // Right to the NQ column
@@ -130,7 +166,7 @@ pub fn select_any_materials(handle: xiv::XivHandle, task: &Task) {
     }
 }
 
-pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
+pub fn select_materials(handle: xiv::XivHandle, task: &task::Task) {
     if task.use_any_mats {
         return select_any_materials(handle, task);
     }
@@ -169,66 +205,57 @@ pub fn select_materials(handle: xiv::XivHandle, task: &Task) {
     }
 }
 
-fn execute_task(handle: xiv::XivHandle, task: &Task, actions: &[Action]) {
-    for task_index in 1..=task.quantity {
-        log::info!(
-            "crafting {} {}/{}",
-            task.recipe.name,
-            task_index,
-            task.quantity
-        );
-        // If we're at the start of a task we will already have the Synthesize button
-        // selected with the pointer.
-        select_materials(handle, &task);
+fn execute_task(handle: xiv::XivHandle, task: &task::Task, actions: &[Action]) {
+    // If we're at the start of a task we will already have the Synthesize button
+    // selected with the pointer.
+    select_materials(handle, &task);
+    ui::press_confirm(handle);
+
+    // The first action is one second off so we start typing while the
+    // crafting window is coming up.
+    let mut next_action = Instant::now() + Duration::from_secs(2);
+    let mut prev_action = next_action;
+    for action in actions {
+        ui::press_enter(handle);
+        ui::send_string(handle, &format!("/ac \"{}\"", &action.name));
+        // At this point the action is queued in the text buffer, so we can
+        // wait the GCD duration based on the last action we sent.
+        let mut now = Instant::now();
+        if now < next_action {
+            let delta = next_action - now;
+            log::trace!("sleeping {:?}", delta);
+            sleep(delta);
+        }
+        ui::press_enter(handle);
+        // Handle turning a 3.0 wait in traditional macros into something closer to a real GCD
+        let delay = if action.wait == 2 { 1500 } else { 2500 };
+
+        now = Instant::now();
+        log::debug!("action: {} ({:?})", action.name, now - prev_action);
+        prev_action = now;
+        next_action = now + Duration::from_millis(delay + GCD_PADDING);
+    }
+
+    // Wait for the last GCD to finish
+    sleep(next_action - Instant::now());
+
+    // There are two paths here. If an item is collectable then it will
+    // prompt a dialog to collect the item as collectable. In this case,
+    // selecting confirm with the keyboard will bring the cursor up already.
+    // The end result is that it needs fewer presses of the confirm key
+    // than otherwise.
+    //
+    // At the end of this sequence the cursor should have selected the recipe
+    // again and be on the Synthesize button.
+    if task.is_collectable {
+        ui::wait(2.0);
         ui::press_confirm(handle);
-
-        // The first action is one second off so we start typing while the
-        // crafting window is coming up.
-        let mut next_action = Instant::now() + Duration::from_secs(2);
-        let mut prev_action = next_action;
-        for action in actions {
-            ui::press_enter(handle);
-            ui::send_string(handle, &format!("/ac \"{}\"", &action.name));
-            // At this point the action is queued in the text buffer, so we can
-            // wait the GCD duration based on the last action we sent.
-            let mut now = Instant::now();
-            if now < next_action {
-                let delta = next_action - now;
-                log::trace!("sleeping {:?}", delta);
-                sleep(delta);
-            }
-            ui::press_enter(handle);
-            // Handle turning a 3.0 wait in traditional macros into something closer to a real GCD
-            let delay = if action.wait == 2 { 1500 } else { 2500 };
-
-            now = Instant::now();
-            log::debug!("action: {} ({:?})", action.name, now - prev_action);
-            prev_action = now;
-            next_action = now + Duration::from_millis(delay + GCD_PADDING);
-        }
-
-        // Wait for the last GCD to finish
-        sleep(next_action - Instant::now());
-
-        // There are two paths here. If an item is collectable then it will
-        // prompt a dialog to collect the item as collectable. In this case,
-        // selecting confirm with the keyboard will bring the cursor up already.
-        // The end result is that it needs fewer presses of the confirm key
-        // than otherwise.
-        //
-        // At the end of this sequence the cursor should have selected the recipe
-        // again and be on the Synthesize button.
-        if task.is_collectable {
-            ui::wait(2.0);
-            ui::press_confirm(handle);
-            ui::wait(1.0);
-            ui::press_confirm(handle);
-        }
-        // Give the UI a moment before pressing confirm to highlight the recipe again
-        ui::wait(3.0);
+        ui::wait(1.0);
         ui::press_confirm(handle);
     }
-    ui::wait(2.0);
+    // Give the UI a moment before pressing confirm to highlight the recipe again
+    ui::wait(3.0);
+    ui::press_confirm(handle);
 }
 
 fn send_action(handle: xiv::XivHandle, action: &str) {

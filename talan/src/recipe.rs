@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct RecipeMaterial {
     pub id: u32,
     pub count: u32,
     pub name: String,
 }
 // Top level structs to export out of the library
-#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Recipe {
     pub durability: u32,
     pub difficulty: u32,
@@ -56,6 +56,8 @@ impl From<&xivapi::ApiRecipe> for Recipe {
     }
 }
 
+// RecipeBuilder consumes results from xivapi::query_recipe and returns a single recipe
+// matching a specific item name and job combination.
 pub struct RecipeBuilder<'a> {
     name: &'a str,
     job: u32,

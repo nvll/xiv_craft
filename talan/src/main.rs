@@ -7,8 +7,6 @@ mod rpc;
 mod task;
 
 use clap::{App, Arg};
-use config::write_config;
-use craft::craft_items;
 use failure::Error;
 use rpc::{Request, Response, Worker};
 use simple_logger;
@@ -61,14 +59,11 @@ fn main() -> Result<(), Error> {
         log::info!("\t{}", m.name);
     }
 
-    let mut cfg = config::read_config();
+    let mut cfg = config::get_config(None);
     // If we cached any task info but the user doesn't want it anymore then it
     // needs to be cleared out.
     if !cfg.options.reload_tasks {
         cfg.tasks.clear();
-        if write_config(&cfg).is_err() {
-            log::error!("failed to write config");
-        }
     } else {
         // If we restored tasks from a saved config and the macro count changed
         // then the id may not be valid anymore.
@@ -79,19 +74,13 @@ fn main() -> Result<(), Error> {
         }
     }
 
-    let mut handle = xiv::init()?;
     let (client_tx, worker_rx): (Sender<Request>, Receiver<Request>) = channel();
     let (worker_tx, client_rx): (Sender<Response>, Receiver<Response>) = channel();
     thread::spawn(move || Worker::new(worker_rx, worker_tx).worker_thread());
-    loop {
-        let mut gui = gui::Gui::new(&macros, &client_tx, &client_rx);
-        if !gui.start(&mut cfg)? {
-            break;
-        }
 
-        handle.use_slow_navigation = cfg.options.use_slow_navigation;
-        craft_items(handle, &cfg, &macros[..]);
-    }
+    let mut gui = gui::Gui::new(&macros, &client_tx, &client_rx);
+    gui.start(&mut cfg)?;
+
     println!("exiting...");
     Ok(())
 }

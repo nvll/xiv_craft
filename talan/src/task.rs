@@ -9,7 +9,7 @@ pub struct MaterialCount {
 
 // A task represents crafting a specific item a given number of times
 // using a provided recipe and macro.
-#[derive(PartialEq, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct Task {
     pub use_any_mats: bool,
     pub is_collectable: bool, // craft collectables
@@ -38,15 +38,16 @@ impl Task {
 
 // Used to represent the status of a Task being executed by the crafting
 // engine.
-pub struct TaskStatus {
+#[derive(Clone, Debug)]
+pub struct Status {
     pub name: String,
     pub finished: u32,
     pub total: u32,
 }
 
-impl From<Task> for TaskStatus {
-    fn from(task: Task) -> Self {
-        TaskStatus {
+impl<'a> From<&'a Task> for Status {
+    fn from(task: &'a Task) -> Self {
+        Status {
             name: task.recipe.name.clone(),
             finished: 0,
             total: task.quantity as u32,

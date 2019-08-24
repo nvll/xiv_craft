@@ -72,7 +72,9 @@ pub fn init(width: f64, height: f64, title: &str) -> System {
     ]);
 
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
-    set_talan_style(imgui.style_mut());
+    let mut style = imgui.style_mut();
+    style.use_light_colors();
+    style.colors[StyleColor::PlotHistogram as usize] = style.colors[StyleColor::Button as usize];
 
     let renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
 
@@ -146,10 +148,10 @@ pub fn combobox<'a>(
 
 pub fn set_talan_style(style: &mut imgui::Style) {
     // Set all windows / widgets to rectangles
-    style.child_rounding = 1.0;
-    style.popup_rounding = 1.0;
-    style.frame_rounding = 1.0;
-    style.window_rounding = 1.0;
+    // style.child_rounding = 1.0;
+    // style.popup_rounding = 1.0;
+    // style.frame_rounding = 1.0;
+    // style.window_rounding = 1.0;
     style.frame_border_size = 1.0;
 
     // This style is adapted from the light style in imgui_draw.cpp
@@ -188,7 +190,7 @@ pub fn set_talan_style(style: &mut imgui::Style) {
     style.colors[StyleColor::ResizeGripActive as usize] = [0.26, 0.59, 0.98, 0.95];
     style.colors[StyleColor::PlotLines as usize] = [0.39, 0.39, 0.39, 1.00];
     style.colors[StyleColor::PlotLinesHovered as usize] = [1.00, 0.43, 0.35, 1.00];
-    style.colors[StyleColor::PlotHistogram as usize] = [0.90, 0.70, 0.00, 1.00];
+    style.colors[StyleColor::PlotHistogram as usize] = [0.26, 0.59, 0.98, 0.40];
     style.colors[StyleColor::PlotHistogramHovered as usize] = [1.00, 0.45, 0.00, 1.00];
     style.colors[StyleColor::TextSelectedBg as usize] = [0.26, 0.59, 0.98, 0.35];
     style.colors[StyleColor::DragDropTarget as usize] = [0.26, 0.59, 0.98, 0.95];

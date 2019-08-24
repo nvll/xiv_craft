@@ -12,9 +12,4 @@
 /ac "Inner Quiet" <wait.2>
 /ac "Steady Hand ii" <wait.2>
 /ac "Prudent Touch" <wait.3>
-/ac "Prudent Touch" <wait.3>
-/ac "Prudent Touch" <wait.3>
-/ac "Great Strides" <wait.2>
-/ac "Byregot's Blessing" <wait.3>
-/ac "Careful Synthesis ii" <wait.3>
 /ac "Careful Synthesis ii" <wait.3>
