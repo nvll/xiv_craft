@@ -1,7 +1,7 @@
 use failure::{format_err, Error};
 use log;
 use reqwest;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp::Ordering;
 use std::collections::HashMap;
