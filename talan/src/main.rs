@@ -79,7 +79,7 @@ fn main() -> Result<(), Error> {
     thread::spawn(move || Worker::new(worker_rx, worker_tx).worker_thread());
 
     let mut gui = gui::Gui::new(&macros, &client_tx, &client_rx);
-    gui.start(&mut cfg)?;
+    gui.start(&mut cfg);
 
     println!("exiting...");
     Ok(())

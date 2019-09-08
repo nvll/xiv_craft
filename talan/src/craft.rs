@@ -72,6 +72,12 @@ pub fn craft_items<'a, F, S>(
         select_recipe(handle, &task);
 
         for task_index in 1..=task.quantity {
+            if !continue_fn() {
+                log::info!("Received stop order");
+                stop = true;
+                break;
+            }
+
             log::info!(
                 "crafting {} {}/{}",
                 task.recipe.name,
@@ -86,11 +92,6 @@ pub fn craft_items<'a, F, S>(
 
             status_fn(&status[..]);
             // Check if we received a message to stop from the main thread.
-            if !continue_fn() {
-                log::info!("Received stop order");
-                stop = true;
-                break;
-            }
             ui::wait(2.0);
         }
 

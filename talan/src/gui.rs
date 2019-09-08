@@ -2,7 +2,6 @@ use crate::config::{self, write_config};
 use crate::macros::MacroFile;
 use crate::rpc::{Request, Response};
 use crate::task::{Status, Task};
-use failure::Error;
 use gui_support;
 use imgui::*;
 use std::cmp::{max, min};
@@ -27,35 +26,26 @@ struct ModalText {
     msg: ImString,
 }
 
+#[derive(Debug, PartialEq)]
+enum WorkerStatus {
+    Idle,
+    Crafting,
+    Stopping,
+}
+
 /// UiState tracks all the state specific to ImGui and any widget
 /// events triggered by the user. All widgets that bind to data
 /// will find their backing store here.
 #[derive(Debug)]
 struct UiState {
-    // TODO: Convert some of these into enum values
-    /// |true| if we're leaving the gui becaue the user pressed 'craft'.
-    begin_crafts_selected: bool,
-    /// |true| if a task set was sent to the worker thread.
-    craft_started: bool,
-    craft_status: Vec<Status>,
-    craft_stopped: bool,
-    waiting_to_stop: bool,
+    worker: WorkerStatus,
+    craft_status: Option<Vec<Status>>,
     /// Store for the Error / Message popup
     modal_popup: ModalText,
-    // Whether a task add was triggered via the button or enter in the text box.
-    add_task_button_clicked: bool,
     // The item search string.
     search_str: ImString,
     // The job dropdown selection.
     search_job: i32,
-    // If we should leave the gui main loop.
-    exit_gui: bool,
-    // These are used to track a task that should be modified in the list.
-    clear_task_list: bool,
-    task_to_remove: Option<i32>,
-    task_to_move: Option<(i32, i32)>, // index, offset (-1, +1)
-    // |true| when a request has been sent to the xivapi worker thread.
-    searching: bool,
 }
 
 impl Default for UiState {
@@ -66,19 +56,10 @@ impl Default for UiState {
                 title: ImString::with_capacity(128),
                 msg: ImString::with_capacity(512),
             },
-            add_task_button_clicked: false,
-            begin_crafts_selected: false,
-            craft_started: false,
-            craft_status: Vec::new(),
-            craft_stopped: false,
-            waiting_to_stop: false,
+            worker: WorkerStatus::Idle,
+            craft_status: None,
             search_str: ImString::with_capacity(128),
             search_job: 0,
-            exit_gui: false,
-            clear_task_list: false,
-            task_to_remove: None,
-            task_to_move: None,
-            searching: false,
         }
     }
 }
@@ -111,135 +92,60 @@ impl<'a, 'b> Gui<'a> {
         }
     }
 
-    pub fn start(&mut self, mut config: &mut config::Config) -> Result<bool, Error> {
-        let system = gui_support::init(f64::from(WINDOW_W), f64::from(WINDOW_H), "Talan");
-
-        // Due to the way borrowing and closures work, most of the rendering impl
-        // borrow inner members of our GUI state and are otherwise not methods.
-        system.main_loop(|_, ui| {
-            // Render the menu, and handle any results of that.
-            Gui::main_menu(&ui, &mut self.state);
-            // If |Begin Crafting| was selected from the menu
-            if self.state.begin_crafts_selected {
-                if Gui::check_gear_sets(&mut self.state, &config) {
-                    self.rpc_tx
-                        .send(Request::Craft {
-                            options: config.options,
-                            tasks: config.tasks.clone(),
-                            macros: self.macros.to_vec(),
-                        })
-                        .unwrap_or_else(|e| {
-                            log::error!("rpc failed at line {}: {}", line!(), e.to_string())
-                        });
-                }
-                self.state.begin_crafts_selected = false;
-                self.state.craft_started = true;
-            }
-
-            // Once we've send a Request::Craft to the worker it will craft
-            // items and periodicially send a Response::Status after finishing
-            // each item. When the worker is done working it will send a
-            // Response::EOW. This applies in all cases work stops, whether it
-            // be due to a successful completion, |stop| being clicked, or other
-            // error.
-            if self.state.craft_started {
-                if let Ok(resp) = self.rpc_rx.try_recv() {
-                    match resp {
-                        Response::Craft(status) => {
-                            self.state.craft_status = status;
-                        }
-                        Response::EOW => {
-                            self.state.waiting_to_stop = false;
-                            self.state.craft_started = false;
-                        }
-
-                        _ => (),
-                    }
-                }
-                Gui::progress_window(&ui, &mut self.state);
-            }
-
-            // If crafting was stopped then update the task list to reflect the
-            // items that were finished in the interim.
-            if self.state.craft_stopped {
-                self.rpc_tx.send(Request::StopCrafting).unwrap_or_else(|e| {
-                    log::error!("rpc failed at line {}: {}", line!(), e.to_string())
-                });
-                self.state.craft_stopped = false;
-                self.state.waiting_to_stop = true;
-            }
-
-            // Clear out task lists before rendering the list, if the menu option
-            // was selected.
-            if self.state.clear_task_list {
-                self.state.clear_task_list = false;
-                config.tasks.clear();
-            }
-
-            Gui::task_list_window(&ui, &mut config, &mut self.state, &self.macro_labels[..]);
-            Gui::add_tasks_window(&ui, &mut self.state, &self.job_labels[..]);
-            Gui::configuration_window(&ui, &mut config);
-            // Always try to render a popup in case we have data primed for one.
-            Gui::modal_popup_window(&ui, &mut self.state);
-
-            // Modifications to the task list can't be done while we're rendering
-            // it, so the actions are deferred to here.
-            if let Some(id) = self.state.task_to_remove {
-                config.tasks.remove(id as usize);
-                self.state.task_to_remove = None;
-            }
-
-            if let Some((t_id, offset)) = self.state.task_to_move {
-                let pos = (t_id + offset) as usize;
-                let task = config.tasks.remove(t_id as usize);
-                config.tasks.insert(pos, task);
-                self.state.task_to_move = None;
-            }
-
-            // If |Add Task| was clicked then we fire off a query to
-            // xivapi via the worker thread and add the results to
-            // the task list if they were successful.
-            if self.state.add_task_button_clicked {
-                if !self.state.searching {
-                    self.rpc_tx
-                        .send(Request::Recipe {
-                            item: self.state.search_str.to_string(),
-                            job: self.state.search_job as u32,
-                        })
-                        .unwrap_or_else(|e| {
-                            log::error!("rpc failed at line {}: {}", line!(), e.to_string())
-                        });
-                    self.state.searching = true;
-                }
-
-                // If we're in a searching state then keep trying to read a
-                // response from the worker while we're rendering the gui.
-                if let Ok(r) = self.rpc_rx.try_recv() {
-                    if let Response::Recipe(Some(recipe)) = r {
-                        config.tasks.push(Task::new(recipe));
-                    } else {
-                        let msg = &format!(
-                            "No {} results found on XIVApi for \"{}\"",
-                            xiv::JOBS[self.state.search_job as usize],
-                            &self.state.search_str
-                        );
-                        Gui::set_modal_text(&mut self.state, "Item not found", msg);
-                    }
-                    self.state.searching = false;
-                    self.state.add_task_button_clicked = false;
-                }
-            }
-        });
-
-        Ok(self.state.begin_crafts_selected)
+    fn send_to_worker(&self, r: Request) {
+        self.rpc_tx
+            .send(r)
+            .unwrap_or_else(|e| log::error!("rpc failed at line {}: {}", line!(), e.to_string()))
     }
 
-    fn _display_unimplemented(state: &mut UiState) {
-        Gui::set_modal_text(
-            state,
-            "Unimplemented",
-            "This feature is not yet implemented, sorry!",
-        );
+    pub fn start(&mut self, mut config: &mut config::Config) {
+        let system = gui_support::init(f64::from(WINDOW_W), f64::from(WINDOW_H), "Talan");
+
+        system.main_loop(|_, ui| {
+            // Most operations (recipe queries, crafting, etc) are handled by
+            // the background worker thread. This means we can always update bookkeeping
+            // and other state by checking if there are any messages on the channel.
+            if let Ok(resp) = self.rpc_rx.try_recv() {
+                match resp {
+                    Response::Recipe(recipe_opt) => {
+                        if let Some(recipe) = recipe_opt {
+                            config.tasks.push(Task::new(recipe));
+                        } else {
+                            let msg = &format!(
+                                "No {} results found on XIVApi for \"{}\"",
+                                xiv::JOBS[self.state.search_job as usize],
+                                &self.state.search_str
+                            );
+                            Gui::set_modal_text(&mut self.state, "Item not found", msg);
+                        }
+                    }
+                    Response::Craft(status) => {
+                        // There is a final status sent when the worker is told to stop,
+                        // before the EOW. This lets us track the final item completion
+                        // and reflect it in the progress bars, but we need to stay out
+                        // of the crafting state to hide the |Stop| button.
+                        if self.state.worker != WorkerStatus::Stopping {
+                            self.state.worker = WorkerStatus::Crafting;
+                        }
+                        self.state.craft_status = Some(status);
+                    }
+                    Response::EOW => {
+                        self.state.worker = WorkerStatus::Idle;
+                        self.state.craft_status = None;
+                    }
+                }
+            }
+
+            // Everything is rendered unconditionally here because the methods
+            // themselves are data driven based on the state structure.
+            self.main_menu(&ui, &mut config);
+            self.task_list_window(&ui, &mut config);
+            self.add_tasks_window(&ui);
+            Gui::configuration_window(&ui, &mut config);
+            // Always try to render a popup in case we have data primed for one.
+            self.modal_popup_window(&ui);
+            self.progress_window(&ui);
+        });
     }
 
     /// Stores the strings for the modal pop-up and sets it to appear on the next frame.
@@ -256,62 +162,74 @@ impl<'a, 'b> Gui<'a> {
     ///
     /// Much of this function is dealing with the fact that we cannot currently
     /// set the size of a modal window with the Rust imgui bindings.
-    fn modal_popup_window(ui: &imgui::Ui, state: &mut UiState) {
-        if state.modal_popup.has_msg {
-            let title = state.modal_popup.title.clone();
+    fn modal_popup_window(&mut self, ui: &imgui::Ui) {
+        if self.state.modal_popup.has_msg {
+            let title = self.state.modal_popup.title.clone();
             ui.open_popup(&title);
             ui.popup_modal(&title)
                 .always_auto_resize(true)
                 .resizable(false)
                 .movable(false)
                 .build(|| {
-                    ui.text(&state.modal_popup.msg);
+                    ui.text(&self.state.modal_popup.msg);
                     if ui.button(im_str!("Ok"), [0.0, 0.0]) {
                         ui.close_current_popup();
-                        state.modal_popup.has_msg = false;
+                        self.state.modal_popup.has_msg = false;
                     }
                 });
         }
     }
 
-    fn main_menu(ui: &imgui::Ui, state: &mut UiState) {
+    fn main_menu(&mut self, ui: &imgui::Ui, config: &mut config::Config) {
         ui.main_menu_bar(|| {
             ui.menu(im_str!("Crafting Tasks")).build(|| {
-                ui.menu_item(im_str!("Begin Crafting"))
-                    .selected(&mut state.begin_crafts_selected)
-                    .build();
+                if ui.menu_item(im_str!("Begin Crafting")).build()
+                    && Gui::check_gear_sets(&mut self.state, config)
+                {
+                    self.send_to_worker(Request::Craft {
+                        options: config.options,
+                        tasks: config.tasks.clone(),
+                        macros: self.macros.to_vec(),
+                    });
+                }
+
                 ui.separator();
-                ui.menu_item(im_str!("Clear List"))
-                    .selected(&mut state.clear_task_list)
-                    .build();
+                if ui.menu_item(im_str!("Clear List")).build() {
+                    config.tasks.clear();
+                }
             });
         });
     }
 
-    fn progress_window(ui: &imgui::Ui, state: &mut UiState) {
-        ui.open_popup(im_str!("Crafting Progress"));
-        ui.popup_modal(im_str!("Crafting Progress"))
-            .always_auto_resize(true)
-            .build(|| {
-                // Progress bars look better with borders.
-                let _token = ui.push_style_var(StyleVar::FrameBorderSize(1.0));
-                for s in state.craft_status.iter() {
-                    ui.text(format!("{} {}/{}", s.name, s.finished, s.total));
-                    ui.progress_bar(s.finished as f32 / s.total as f32).build();
-                }
-                if !state.waiting_to_stop {
-                    if ui.button(im_str!("Stop"), [0.0, 0.0]) {
-                        // Ensure the worker thread stops crafting.
-                        state.craft_stopped = true;
+    fn progress_window(&mut self, ui: &imgui::Ui) {
+        if self.state.craft_status.is_some() {
+            ui.open_popup(im_str!("Crafting Progress"));
+            ui.popup_modal(im_str!("Crafting Progress"))
+                .always_auto_resize(true)
+                .build(|| {
+                    if let Some(status) = &self.state.craft_status {
+                        // Progress bars look better with borders.
+                        let _token = ui.push_style_var(StyleVar::FrameBorderSize(1.0));
+                        for s in status.iter() {
+                            ui.text(format!("{} {}/{}", s.name, s.finished, s.total));
+                            ui.progress_bar(s.finished as f32 / s.total as f32).build();
+                        }
+                        if self.state.worker == WorkerStatus::Crafting {
+                            if ui.button(im_str!("Stop"), [0.0, 0.0]) {
+                                self.send_to_worker(Request::StopCrafting);
+                                // Ensure the worker thread stops crafting.
+                                self.state.worker = WorkerStatus::Stopping;
+                            }
+                        } else {
+                            ui.text("Waiting for any queued actions to finish");
+                        }
                     }
-                } else {
-                    ui.text("Waiting for item to finish");
-                }
-            });
+                });
+        }
     }
 
     /// The window recipe searching and adding items to the task list.
-    fn add_tasks_window(ui: &imgui::Ui, state: &mut UiState, job_labels: &[ImString]) {
+    fn add_tasks_window(&mut self, ui: &imgui::Ui) {
         ui.window(im_str!("Add Tasks"))
             .size(ADD_TASKS_SIZE, Condition::FirstUseEver)
             .position(ADD_TASKS_POSITION, Condition::FirstUseEver)
@@ -322,29 +240,28 @@ impl<'a, 'b> Gui<'a> {
                 gui_support::combobox(
                     ui,
                     im_str!("Job (if multiple)"),
-                    &mut state.search_job,
-                    job_labels,
+                    &mut self.state.search_job,
+                    &self.job_labels,
                 );
                 if ui
-                    .input_text(im_str!("Item"), &mut state.search_str)
+                    .input_text(im_str!("Item"), &mut self.state.search_str)
                     .flags(
                         ImGuiInputTextFlags::EnterReturnsTrue | ImGuiInputTextFlags::AutoSelectAll,
                     )
                     .build()
                     || ui.button(im_str!("Add"), [0.0, 0.0])
                 {
-                    state.add_task_button_clicked = true;
+                    self.send_to_worker(Request::Recipe {
+                        item: self.state.search_str.to_string(),
+                        job: self.state.search_job as u32,
+                    });
                 }
             });
     }
 
     /// The task list display itself.
-    fn task_list_window(
-        ui: &imgui::Ui,
-        config: &mut config::Config,
-        state: &mut UiState,
-        macros: &[ImString],
-    ) -> bool {
+    fn task_list_window(&mut self, ui: &imgui::Ui, config: &mut config::Config) {
+        let mut tasks_copy = config.tasks.clone();
         ui.window(im_str!("Task List"))
             .size(TASK_LIST_SIZE, Condition::FirstUseEver)
             .position(TASK_LIST_POSITION, Condition::FirstUseEver)
@@ -355,26 +272,22 @@ impl<'a, 'b> Gui<'a> {
             .build(|| {
                 // Both Tasks and their materials are enumerated so we can generate unique
                 // UI ids for widgets and prevent any sort of UI clash.
-                let task_len = config.tasks.len();
                 for (task_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
-                    Gui::draw_task(ui, state, task_len as i32, task_id as i32, &mut t, macros);
+                    self.draw_task(ui, task_id, &mut t, &mut tasks_copy);
                 }
             });
-
-        // If we return a |true| value the main_loop will know to exit the run loop.
-        state.exit_gui
+        config.tasks = tasks_copy;
     }
 
     /// A helper function called to render each task in the task list.
     fn draw_task(
+        &mut self,
         ui: &imgui::Ui,
-        state: &mut UiState,
-        task_cnt: i32,
-        task_id: i32,
+        task_id: usize,
         task: &mut Task,
-        macros: &[ImString],
+        tasks_copy: &mut Vec<Task>,
     ) {
-        ui.push_id(task_id);
+        ui.push_id(task_id as i32);
         // header should be closeable
         let header_name = ImString::new(format!(
             "[{} {}] {}x {} {}",
@@ -410,10 +323,12 @@ impl<'a, 'b> Gui<'a> {
             {
                 ui.push_id(i as i32);
                 if !task.use_any_mats {
-                    // Otherwise we need to convert some numerical values to strings,
+                    // We need to convert some numerical values to strings,
                     // then feed them into the widgets. This seems like it should
                     // thrash like crazy, but thankfully it's 2019 and processors
-                    // are fast?
+                    // are fast? This is a side effect of not wanting NQ to have
+                    // buttons that the integer widget has, and not wanting the
+                    // unaligned text of a label.
                     let nq_imstr = ImString::new(format!("{} NQ", qual.nq.to_string()));
                     {
                         // width scope
@@ -439,21 +354,25 @@ impl<'a, 'b> Gui<'a> {
                     task.quantity = max(1, task.quantity);
                 }
             }
-            gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &macros);
+            gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &self.macro_labels);
+            // None of these task modifications can happen at the same time becaise it's
+            // not possible for a user to click multiple buttons in the same frame.
             if task_id > 0 {
                 if ui.small_button(im_str!("up")) {
-                    state.task_to_move = Some((task_id, -1));
+                    let t = tasks_copy.remove(task_id);
+                    tasks_copy.insert(task_id - 1, t);
                 }
                 ui.same_line(0.0);
             }
-            if task_id < task_cnt - 1 {
+            if task_id < tasks_copy.len() - 1 {
                 if ui.small_button(im_str!("down")) {
-                    state.task_to_move = Some((task_id, 1));
+                    let t = tasks_copy.remove(task_id);
+                    tasks_copy.insert(task_id + 1, t);
                 }
                 ui.same_line(0.0);
             }
             if ui.small_button(im_str!("delete")) {
-                state.task_to_remove = Some(task_id);
+                tasks_copy.remove(task_id);
             }
             ui.unindent();
         }
@@ -529,13 +448,13 @@ impl<'a, 'b> Gui<'a> {
 
     /// Ensures all gear sets are configured for a given list of tasks before
     /// starting crafting.
-    fn check_gear_sets(mut state: &mut UiState, config: &config::Config) -> bool {
+    fn check_gear_sets(state: &mut UiState, config: &config::Config) -> bool {
         for task in &config.tasks {
             let job = task.recipe.job as usize;
             if config.options.gear[job] == 0 {
                 log::error!("No gear set configured for {}", xiv::JOBS[job]);
                 let msg = format!("Please set a gear set for {} to continue", xiv::JOBS[job]);
-                Gui::set_modal_text(&mut state, "Unconfigured gear sets", &msg);
+                Gui::set_modal_text(state, "Unconfigured gear sets", &msg);
                 return false;
             }
         }
