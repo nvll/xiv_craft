@@ -116,7 +116,7 @@ impl<'a, 'b> Gui<'a> {
 
         // Due to the way borrowing and closures work, most of the rendering impl
         // borrow inner members of our GUI state and are otherwise not methods.
-        system.main_loop(|run, ui| {
+        system.main_loop(|_, ui| {
             // Render the menu, and handle any results of that.
             Gui::main_menu(&ui, &mut self.state);
             // If |Begin Crafting| was selected from the menu
@@ -176,8 +176,7 @@ impl<'a, 'b> Gui<'a> {
                 config.tasks.clear();
             }
 
-            *run =
-                !Gui::task_list_window(&ui, &mut config, &mut self.state, &self.macro_labels[..]);
+            Gui::task_list_window(&ui, &mut config, &mut self.state, &self.macro_labels[..]);
             Gui::add_tasks_window(&ui, &mut self.state, &self.job_labels[..]);
             Gui::configuration_window(&ui, &mut config);
             // Always try to render a popup in case we have data primed for one.
