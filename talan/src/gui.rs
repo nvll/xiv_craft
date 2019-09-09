@@ -355,6 +355,11 @@ impl<'a, 'b> Gui<'a> {
                 }
             }
             gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &self.macro_labels);
+
+            // Update the state of the task that was modified before the other buttons are
+            // handled. Otherwise we lose these modifications because they aren't reflected
+            // in the task structure we're copying back to the config object.
+            tasks_copy[task_id] = task.clone();
             // None of these task modifications can happen at the same time becaise it's
             // not possible for a user to click multiple buttons in the same frame.
             if task_id > 0 {
