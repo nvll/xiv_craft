@@ -70,7 +70,7 @@ pub fn craft_items<'a, F, S>(
 
         // Navigate to the correct recipe based on the index provided
         select_recipe(handle, &task);
-
+        select_materials(handle, &task);
         for task_index in 1..=task.quantity {
             if !continue_fn() {
                 log::info!("Received stop order");
@@ -209,7 +209,6 @@ pub fn select_materials(handle: xiv::XivHandle, task: &task::Task) {
 fn execute_task(handle: xiv::XivHandle, task: &task::Task, actions: &[Action]) {
     // If we're at the start of a task we will already have the Synthesize button
     // selected with the pointer.
-    select_materials(handle, &task);
     ui::press_confirm(handle);
 
     // The first action is one second off so we start typing while the
