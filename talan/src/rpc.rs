@@ -114,3 +114,54 @@ impl Worker {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use failure::Error;
+    use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::thread;
+
+    fn setup() -> (Sender<Request>, Receiver<Response>) {
+        let (client_tx, worker_rx): (Sender<Request>, Receiver<Request>) = channel();
+        let (worker_tx, client_rx): (Sender<Response>, Receiver<Response>) = channel();
+        thread::spawn(move || Worker::new(worker_rx, worker_tx).worker_thread());
+
+        (client_tx, client_rx)
+    }
+
+    #[test]
+    fn worker_recipe_test() -> Result<(), Error> {
+        let (tx, rx) = setup();
+        let item1 = "Rakshasa Axe";
+        tx.send(Request::Recipe {
+            item: item1.to_string(),
+            job: None,
+        })?;
+
+        match rx.recv()? {
+            Response::Recipe(Some(recipe)) => {
+                assert!(recipe.name == item1);
+                assert!(recipe.job == 1); // BSM
+                assert!(recipe.index == 0);
+            }
+            _ => panic!("unexpected response"),
+        }
+
+        let item2 = "Cloud Pearl";
+        tx.send(Request::Recipe {
+            item: item2.to_string(),
+            job: Some(5),
+        })?;
+
+        match rx.recv()? {
+            Response::Recipe(Some(recipe)) => {
+                assert!(recipe.name == item2);
+                assert!(recipe.job == 5); // WVR
+                assert!(recipe.index == 11);
+            }
+            _ => panic!("unexpected response"),
+        }
+        Ok(())
+    }
+}
