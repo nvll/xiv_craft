@@ -9,7 +9,7 @@ use std::sync::mpsc::{Receiver, Sender};
 pub enum Request {
     Recipe {
         item: String,
-        job: u32,
+        job: Option<u32>,
     },
     Craft {
         options: config::Options,
@@ -67,7 +67,7 @@ impl Worker {
                     Request::Recipe { item, job } => {
                         let recipe_result = Response::Recipe(
                             if let Ok(search_results) = xivapi::query_recipe(&item) {
-                                recipe::RecipeBuilder::new(&item, job).from_results(&search_results)
+                                recipe::Recipe::filter(&search_results, &item, job)
                             } else {
                                 None
                             },

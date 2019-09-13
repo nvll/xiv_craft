@@ -253,7 +253,7 @@ impl<'a, 'b> Gui<'a> {
                 {
                     self.send_to_worker(Request::Recipe {
                         item: self.state.search_str.to_string(),
-                        job: self.state.search_job as u32,
+                        job: Some(self.state.search_job as u32),
                     });
                 }
             });

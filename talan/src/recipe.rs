@@ -56,19 +56,11 @@ impl From<&xivapi::ApiRecipe> for Recipe {
     }
 }
 
-// RecipeBuilder consumes results from xivapi::query_recipe and returns a single recipe
-// matching a specific item name and job combination.
-pub struct RecipeBuilder<'a> {
-    name: &'a str,
-    job: u32,
-}
-
-impl<'a> RecipeBuilder<'a> {
-    pub fn new(name: &'a str, job: u32) -> Self {
-        RecipeBuilder { name, job }
-    }
-
-    pub fn from_results(self, results: &[xivapi::ApiRecipe]) -> Option<Recipe> {
+impl Recipe {
+    // Searches the |results| slice passed back to us by Xivapi for a given item's recipe.
+    // If |use_first| is set, then we will use the first item that matches the name, regardless
+    // of the job that owns the recipe.
+    pub fn filter(results: &[xivapi::ApiRecipe], name: &str, job: Option<u32>) -> Option<Recipe> {
         for (search_index, recipe) in results.iter().enumerate() {
             // Items like 'Cloud Pearl' also have 'Cloud Pearl Components' in
             // the results, and can have matches for multiple jobs. If there's
@@ -77,8 +69,10 @@ impl<'a> RecipeBuilder<'a> {
             // user had the wrong job selected (For example, they searched
             // 'Dwarven Cotton Yarn' as a CRP. For ease of use in that
             // circumstance we'll just add it to the task list.
-            if recipe.Name.to_lowercase() == self.name.to_lowercase()
-                && (results.len() == 1 || recipe.CraftType.ID as u32 == self.job)
+            if recipe.Name.to_lowercase() == name.to_lowercase()
+                && (results.len() == 1
+                    || job.is_none()
+                    || job.unwrap() == recipe.CraftType.ID as u32)
             {
                 let mut r: Recipe = Recipe::from(recipe);
                 r.index = search_index;
@@ -98,7 +92,7 @@ mod test {
     fn bsm_cloud_pearl_test() -> Result<(), Error> {
         let item_name = "Cloud Pearl";
         let query_results = xivapi::query_recipe(item_name)?;
-        assert!(query_results.len() > 0);
+        assert!(!query_results.is_empty());
         // 1 = BSM. The results for Cloud Pearl will look like:
         // CRP ---
         // Cloud Pearl
@@ -109,11 +103,30 @@ mod test {
         //
         // This test ensures that we recieve index 3 for a specific search and don't
         // get an index of a 'Components' item.
-        let recipe = RecipeBuilder::new(item_name, 1).from_results(&query_results[..]);
+        let recipe = Recipe::filter(&query_results[..], item_name, Some(1));
         assert!(recipe.is_some());
         let r = recipe.unwrap();
         assert_eq!(r.name, item_name);
         assert_eq!(r.index, 3);
+        Ok(())
+    }
+
+    // Verify that if we don't specify a job then we'll get the first result that matches the name.
+    #[test]
+    fn no_job_specified_test() -> Result<(), Error> {
+        // Cloud Pearl exists for all jobs, so the first result should be CRP.
+        let item1 = "Cloud Pearl";
+        let recipe = Recipe::filter(&xivapi::query_recipe(item1)?[..], &item1, None);
+        let r = recipe.unwrap();
+        assert!(r.job == 0);
+        assert!(r.name == item1);
+
+        // Both ARM and BSM can make this ingot, but BSM is first.
+        let item2 = "Tungsten Steel Ingot";
+        let recipe = Recipe::filter(&xivapi::query_recipe(item2)?[..], &item2, None);
+        let r = recipe.unwrap();
+        assert!(r.job == 1);
+        assert!(r.name == item2);
         Ok(())
     }
 }
