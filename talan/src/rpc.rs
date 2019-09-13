@@ -10,6 +10,7 @@ pub enum Request {
     Recipe {
         item: String,
         job: Option<u32>,
+        count: u32,
     },
     Craft {
         options: config::Options,
@@ -21,7 +22,10 @@ pub enum Request {
 
 #[derive(Debug)]
 pub enum Response {
-    Recipe(Option<recipe::Recipe>),
+    Recipe {
+        recipe: Option<recipe::Recipe>,
+        count: u32,
+    },
     Craft(Vec<task::Status>),
     EOW, // End of Work, aka finished.
 }
@@ -64,15 +68,17 @@ impl Worker {
         loop {
             if let Some(request) = self.receive() {
                 match request {
-                    Request::Recipe { item, job } => {
-                        let recipe_result = Response::Recipe(
-                            if let Ok(search_results) = xivapi::query_recipe(&item) {
-                                recipe::Recipe::filter(&search_results, &item, job)
-                            } else {
-                                None
-                            },
-                        );
-                        self.reply(recipe_result);
+                    Request::Recipe { item, job, count } => {
+                        let recipe_result = if let Ok(search_results) = xivapi::query_recipe(&item)
+                        {
+                            recipe::Recipe::filter(&search_results, &item, job)
+                        } else {
+                            None
+                        };
+                        self.reply(Response::Recipe {
+                            recipe: recipe_result,
+                            count,
+                        });
                     }
                     Request::Craft {
                         options,
@@ -137,13 +143,16 @@ mod test {
         tx.send(Request::Recipe {
             item: item1.to_string(),
             job: None,
+            count: 1,
         })?;
 
         match rx.recv()? {
-            Response::Recipe(Some(recipe)) => {
-                assert!(recipe.name == item1);
-                assert!(recipe.job == 1); // BSM
-                assert!(recipe.index == 0);
+            Response::Recipe { recipe, count } => {
+                let r = recipe.unwrap();
+                assert!(r.name == item1);
+                assert!(r.job == 1); // BSM
+                assert!(r.index == 0);
+                assert!(count == 1);
             }
             _ => panic!("unexpected response"),
         }
@@ -152,13 +161,16 @@ mod test {
         tx.send(Request::Recipe {
             item: item2.to_string(),
             job: Some(5),
+            count: 3,
         })?;
 
         match rx.recv()? {
-            Response::Recipe(Some(recipe)) => {
-                assert!(recipe.name == item2);
-                assert!(recipe.job == 5); // WVR
-                assert!(recipe.index == 11);
+            Response::Recipe { recipe, count } => {
+                let r = recipe.unwrap();
+                assert!(r.name == item2);
+                assert!(r.job == 5); // WVR
+                assert!(r.index == 11);
+                assert!(count == 3);
             }
             _ => panic!("unexpected response"),
         }

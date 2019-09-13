@@ -107,9 +107,9 @@ impl<'a, 'b> Gui<'a> {
             // and other state by checking if there are any messages on the channel.
             if let Ok(resp) = self.rpc_rx.try_recv() {
                 match resp {
-                    Response::Recipe(recipe_opt) => {
-                        if let Some(recipe) = recipe_opt {
-                            config.tasks.push(Task::new(recipe));
+                    Response::Recipe { recipe, count } => {
+                        if let Some(r) = recipe {
+                            config.tasks.push(Task::new(r, count));
                         } else {
                             let msg = &format!(
                                 "No {} results found on XIVApi for \"{}\"",
@@ -254,6 +254,7 @@ impl<'a, 'b> Gui<'a> {
                     self.send_to_worker(Request::Recipe {
                         item: self.state.search_str.to_string(),
                         job: Some(self.state.search_job as u32),
+                        count: 1,
                     });
                 }
             });
@@ -350,7 +351,7 @@ impl<'a, 'b> Gui<'a> {
                 // width scope
                 let _w = ui.push_item_width(ui.get_window_size()[0] * 0.33);
                 ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-                if ui.input_int(im_str!("Count"), &mut task.quantity).build() {
+                if ui.input_int(im_str!("Count"), &mut (task.quantity as i32)).build() {
                     task.quantity = max(1, task.quantity);
                 }
             }

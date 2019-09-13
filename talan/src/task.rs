@@ -15,17 +15,17 @@ pub struct Task {
     pub is_collectable: bool, // craft collectables
     pub macro_id: i32,
     pub mat_quality: Vec<MaterialCount>,
-    pub quantity: i32, // number of items to craft
+    pub quantity: u32, // number of items to craft
     pub recipe: Recipe,
 }
 
 impl Task {
-    pub fn new(recipe: Recipe) -> Task {
+    pub fn new(recipe: Recipe, count: u32) -> Task {
         Task {
             use_any_mats: true,
             is_collectable: false,
             macro_id: 0,
-            quantity: 1,
+            quantity: count,
             mat_quality: recipe
                 .mats
                 .iter()
