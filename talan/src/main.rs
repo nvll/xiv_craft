@@ -1,6 +1,7 @@
 mod config;
 mod craft;
 mod gui;
+mod lists;
 mod macros;
 mod recipe;
 mod rpc;

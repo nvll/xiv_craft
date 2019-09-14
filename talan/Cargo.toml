@@ -20,3 +20,4 @@ xivapi = { path = "../xivapi" }
 gui_support = { path = "../gui-support" }
 clap = "2.33.0"
 simple_logger = "1.3.0"
+clipboard = "0.5.0"

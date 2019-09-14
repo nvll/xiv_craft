@@ -124,6 +124,7 @@ impl Worker {
 #[cfg(test)]
 mod test {
     use super::*;
+    use clipboard::{ClipboardContext, ClipboardProvider};
     use failure::Error;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::thread;
@@ -213,11 +214,10 @@ mod test {
         }
 
         for i in 0..recipe_list.len() {
-            assert!(recipe_list[i].0 == tasks[i].recipe.name);
-            assert!(recipe_list[i].1 == tasks[i].quantity);
+            assert_eq!(recipe_list[i].0, tasks[i].recipe.name);
+            assert_eq!(recipe_list[i].1, tasks[i].quantity);
         }
 
         Ok(())
     }
-
 }

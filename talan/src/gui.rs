@@ -351,7 +351,10 @@ impl<'a, 'b> Gui<'a> {
                 // width scope
                 let _w = ui.push_item_width(ui.get_window_size()[0] * 0.33);
                 ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-                if ui.input_int(im_str!("Count"), &mut (task.quantity as i32)).build() {
+                if ui
+                    .input_int(im_str!("Count"), &mut (task.quantity as i32))
+                    .build()
+                {
                     task.quantity = max(1, task.quantity);
                 }
             }
