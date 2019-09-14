@@ -136,6 +136,9 @@ mod test {
         (client_tx, client_rx)
     }
 
+    // Test that a simple Request -> Response cycle works with the worker thread
+    // in the background using a sample recipe. This tests both having the job
+    // specified and not.
     #[test]
     fn worker_recipe_test() -> Result<(), Error> {
         let (tx, rx) = setup();
@@ -176,4 +179,45 @@ mod test {
         }
         Ok(())
     }
+
+    // Ensure that we can queue up recipes + count tuples to the worker and
+    // receive them on the other end in the proper order and count to create a
+    // task list.
+    #[test]
+    fn worker_recipe_list_test() -> Result<(), Error> {
+        let (tx, rx) = setup();
+        let recipe_list = vec![
+            ("Cloud Pearl", 1),
+            ("Prismatic Ingot", 2),
+            ("Rakshasa Axe", 3),
+            ("White Ash Lumber", 1),
+        ];
+        let mut tasks: Vec<task::Task> = Vec::new();
+        for (item, count) in &recipe_list {
+            tx.send(Request::Recipe {
+                item: item.to_string(),
+                count: *count,
+                job: None,
+            })
+            .unwrap();
+        }
+
+        for _ in 0..recipe_list.len() {
+            let resp = rx.recv().unwrap();
+            match resp {
+                Response::Recipe { recipe, count } => {
+                    tasks.push(task::Task::new(recipe.unwrap(), count));
+                }
+                _ => panic!("unexpected response"),
+            }
+        }
+
+        for i in 0..recipe_list.len() {
+            assert!(recipe_list[i].0 == tasks[i].recipe.name);
+            assert!(recipe_list[i].1 == tasks[i].quantity);
+        }
+
+        Ok(())
+    }
+
 }
