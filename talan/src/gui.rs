@@ -1,4 +1,5 @@
 use crate::config::{self, write_config};
+use crate::lists::import_tasks_from_clipboard;
 use crate::macros::MacroFile;
 use crate::rpc::{Request, Response};
 use crate::task::{Status, Task};
@@ -192,8 +193,18 @@ impl<'a, 'b> Gui<'a> {
                         macros: self.macros.to_vec(),
                     });
                 }
-
                 ui.separator();
+                if ui.menu_item(im_str!("Import List from Clipboard")).build() {
+                    if let Ok(items) = import_tasks_from_clipboard() {
+                        for i in &items {
+                            self.send_to_worker(Request::Recipe {
+                                item: i.item.clone(),
+                                job: None,
+                                count: i.count,
+                            });
+                        }
+                    }
+                }
                 if ui.menu_item(im_str!("Clear List")).build() {
                     config.tasks.clear();
                 }
@@ -273,119 +284,115 @@ impl<'a, 'b> Gui<'a> {
             .build(|| {
                 // Both Tasks and their materials are enumerated so we can generate unique
                 // UI ids for widgets and prevent any sort of UI clash.
-                for (task_id, mut t) in &mut config.tasks.iter_mut().enumerate() {
-                    self.draw_task(ui, task_id, &mut t, &mut tasks_copy);
+                let mut delete_offset = 0;
+                for (task_id, mut task) in &mut config.tasks.iter_mut().enumerate() {
+                    ui.push_id(task_id as i32);
+                    // header should be closeable
+                    let header_name = ImString::new(format!(
+                        "[{} {}] {}x {} {}",
+                        xiv::JOBS[task.recipe.job as usize],
+                        task.recipe.level,
+                        task.quantity,
+                        task.recipe.name,
+                        if task.is_collectable {
+                            "(Collectable)"
+                        } else {
+                            ""
+                        }
+                    ));
+                    if ui
+                        .collapsing_header(&header_name)
+                        .default_open(true)
+                        .build()
+                    {
+                        ui.indent();
+                        ui.text(format!(
+                            "{} Durability  {} Difficulty  {} Quality",
+                            task.recipe.durability, task.recipe.difficulty, task.recipe.quality
+                        ));
+                        ui.checkbox(im_str!("Use any materials."), &mut task.use_any_mats);
+
+                        // Draw material widgets, or just the checkbox if checked.
+                        for (i, (mat, qual)) in task
+                            .recipe
+                            .mats
+                            .iter()
+                            .zip(task.mat_quality.iter_mut())
+                            .enumerate()
+                        {
+                            ui.push_id(i as i32);
+                            if !task.use_any_mats {
+                                // We need to convert some numerical values to strings,
+                                // then feed them into the widgets. This seems like it should
+                                // thrash like crazy, but thankfully it's 2019 and processors
+                                // are fast? This is a side effect of not wanting NQ to have
+                                // buttons that the integer widget has, and not wanting the
+                                // unaligned text of a label.
+                                let nq_imstr = ImString::new(format!("{} NQ", qual.nq.to_string()));
+                                {
+                                    // width scope
+                                    let _w = ui.push_item_width(ui.get_window_size()[0] * 0.25);
+                                    ui.text(&ImString::new(mat.name.clone()));
+                                    ui.text(nq_imstr);
+                                    ui.same_line(0.0);
+                                    // Use a temp to deal with imgui only allowing i32
+                                    let mut hq: i32 = qual.hq as i32;
+                                    if ui.input_int(im_str!("HQ"), &mut hq).build() {
+                                        qual.hq = min(max(0, hq as u32), mat.count);
+                                        qual.nq = mat.count - qual.hq;
+                                    }
+                                }
+                            }
+                            ui.pop_id();
+                        }
+                        {
+                            // width scope
+                            let _w = ui.push_item_width(ui.get_window_size()[0] * 0.33);
+                            ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
+                            let mut q: i32 = task.quantity as i32;
+                            if ui.input_int(im_str!("Count"), &mut q).build() {
+                                task.quantity = max(1, q as u32);
+                            }
+                        }
+                        gui_support::combobox(
+                            ui,
+                            im_str!("Macro"),
+                            &mut task.macro_id,
+                            &self.macro_labels,
+                        );
+
+                        // Update the state of the task that was modified before the other buttons are
+                        // handled. Otherwise we lose these modifications because they aren't reflected
+                        // in the task structure we're copying back to the config object. |delete_offset|
+                        // handles the case where we delete an item from the task list and still need to
+                        // walk through the rest of the list.
+                        tasks_copy[task_id - delete_offset] = task.clone();
+                        // None of these task modifications can happen at the same time becaise it's
+                        // not possible for a user to click multiple buttons in the same frame.
+                        if task_id > 0 {
+                            if ui.small_button(im_str!("up")) {
+                                let t = tasks_copy.remove(task_id);
+                                tasks_copy.insert(task_id - 1, t);
+                            }
+                            ui.same_line(0.0);
+                        }
+                        if task_id < tasks_copy.len() - 1 {
+                            if ui.small_button(im_str!("down")) {
+                                let t = tasks_copy.remove(task_id);
+                                tasks_copy.insert(task_id + 1, t);
+                            }
+                            ui.same_line(0.0);
+                        }
+                        if ui.small_button(im_str!("delete")) {
+                            tasks_copy.remove(task_id);
+                            delete_offset = 1;
+                        }
+                        ui.unindent();
+                    }
+                    ui.pop_id();
                 }
             });
         config.tasks = tasks_copy;
-    }
-
-    /// A helper function called to render each task in the task list.
-    fn draw_task(
-        &mut self,
-        ui: &imgui::Ui,
-        task_id: usize,
-        task: &mut Task,
-        tasks_copy: &mut Vec<Task>,
-    ) {
-        ui.push_id(task_id as i32);
-        // header should be closeable
-        let header_name = ImString::new(format!(
-            "[{} {}] {}x {} {}",
-            xiv::JOBS[task.recipe.job as usize],
-            task.recipe.level,
-            task.quantity,
-            task.recipe.name,
-            if task.is_collectable {
-                "(Collectable)"
-            } else {
-                ""
-            }
-        ));
-        if ui
-            .collapsing_header(&header_name)
-            .default_open(true)
-            .build()
-        {
-            ui.indent();
-            ui.text(format!(
-                "{} Durability  {} Difficulty  {} Quality",
-                task.recipe.durability, task.recipe.difficulty, task.recipe.quality
-            ));
-            ui.checkbox(im_str!("Use any materials."), &mut task.use_any_mats);
-
-            // Draw material widgets, or just the checkbox if checked.
-            for (i, (mat, qual)) in task
-                .recipe
-                .mats
-                .iter()
-                .zip(task.mat_quality.iter_mut())
-                .enumerate()
-            {
-                ui.push_id(i as i32);
-                if !task.use_any_mats {
-                    // We need to convert some numerical values to strings,
-                    // then feed them into the widgets. This seems like it should
-                    // thrash like crazy, but thankfully it's 2019 and processors
-                    // are fast? This is a side effect of not wanting NQ to have
-                    // buttons that the integer widget has, and not wanting the
-                    // unaligned text of a label.
-                    let nq_imstr = ImString::new(format!("{} NQ", qual.nq.to_string()));
-                    {
-                        // width scope
-                        let _w = ui.push_item_width(ui.get_window_size()[0] * 0.25);
-                        ui.text(&ImString::new(mat.name.clone()));
-                        ui.text(nq_imstr);
-                        ui.same_line(0.0);
-                        // Use a temp to deal with imgui only allowing i32
-                        let mut hq: i32 = qual.hq as i32;
-                        if ui.input_int(im_str!("HQ"), &mut hq).build() {
-                            qual.hq = min(max(0, hq as u32), mat.count);
-                            qual.nq = mat.count - qual.hq;
-                        }
-                    }
-                }
-                ui.pop_id();
-            }
-            {
-                // width scope
-                let _w = ui.push_item_width(ui.get_window_size()[0] * 0.33);
-                ui.checkbox(im_str!("Collectable"), &mut task.is_collectable);
-                if ui
-                    .input_int(im_str!("Count"), &mut (task.quantity as i32))
-                    .build()
-                {
-                    task.quantity = max(1, task.quantity);
-                }
-            }
-            gui_support::combobox(ui, im_str!("Macro"), &mut task.macro_id, &self.macro_labels);
-
-            // Update the state of the task that was modified before the other buttons are
-            // handled. Otherwise we lose these modifications because they aren't reflected
-            // in the task structure we're copying back to the config object.
-            tasks_copy[task_id] = task.clone();
-            // None of these task modifications can happen at the same time becaise it's
-            // not possible for a user to click multiple buttons in the same frame.
-            if task_id > 0 {
-                if ui.small_button(im_str!("up")) {
-                    let t = tasks_copy.remove(task_id);
-                    tasks_copy.insert(task_id - 1, t);
-                }
-                ui.same_line(0.0);
-            }
-            if task_id < tasks_copy.len() - 1 {
-                if ui.small_button(im_str!("down")) {
-                    let t = tasks_copy.remove(task_id);
-                    tasks_copy.insert(task_id + 1, t);
-                }
-                ui.same_line(0.0);
-            }
-            if ui.small_button(im_str!("delete")) {
-                tasks_copy.remove(task_id);
-            }
-            ui.unindent();
-        }
-        ui.pop_id();
     }
 
     /// The window for all configuration and optional settings.

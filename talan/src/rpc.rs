@@ -124,7 +124,6 @@ impl Worker {
 #[cfg(test)]
 mod test {
     use super::*;
-    use clipboard::{ClipboardContext, ClipboardProvider};
     use failure::Error;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::thread;

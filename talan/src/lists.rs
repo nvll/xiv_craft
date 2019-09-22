@@ -1,9 +1,16 @@
+use clipboard::{ClipboardContext, ClipboardProvider};
 use failure::{format_err, Error};
 
+// Should use string probably
 #[derive(Debug, PartialEq)]
-pub struct ListItem<'a> {
-    pub item: &'a str,
+pub struct ListItem {
+    pub item: String,
     pub count: u32,
+}
+
+pub fn import_tasks_from_clipboard() -> Result<Vec<ListItem>, Error> {
+    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    parse_item_list(&ctx.get_contents().unwrap())
 }
 
 pub fn parse_item_list(string: &str) -> Result<Vec<ListItem>, Error> {
@@ -18,7 +25,7 @@ pub fn parse_item_list(string: &str) -> Result<Vec<ListItem>, Error> {
     Ok(v)
 }
 
-fn parse_list_line<'a>(line: &'a str) -> Result<ListItem<'a>, Error> {
+fn parse_list_line<'a>(line: &str) -> Result<ListItem, Error> {
     // Every item should have {NUM}x {NAME}. If we can't split here, then
     // assume the string is just an item name and count is 1.
     let v: Vec<&str> = line.split("x ").collect();
@@ -44,7 +51,10 @@ fn parse_list_line<'a>(line: &'a str) -> Result<ListItem<'a>, Error> {
     }
     // At this point there should be an 'x' followed by a space
 
-    Ok(ListItem { item: v[1], count })
+    Ok(ListItem {
+        item: v[1].to_string(),
+        count,
+    })
 }
 
 #[cfg(test)]
@@ -56,20 +66,8 @@ mod test {
     0x Item Name
     1000x Item Name";
 
-    const TEST_DATA_RESULTS: [ListItem; 3] = [
-        ListItem {
-            item: "ItemName",
-            count: 3,
-        },
-        ListItem {
-            item: "Item Name",
-            count: 1,
-        },
-        ListItem {
-            item: "Item Name",
-            count: 1000,
-        },
-    ];
+    const TEST_DATA_RESULTS: [(&'static str, u32); 3] =
+        [("ItemName", 3), ("Item Name", 1), ("Item Name", 1000)];
 
     #[test]
     fn buffer_parse_test() -> Result<(), Error> {
@@ -77,7 +75,13 @@ mod test {
             .iter()
             .zip(TEST_DATA_RESULTS.iter())
         {
-            assert_eq!(*actual, *expected);
+            assert_eq!(
+                *actual,
+                ListItem {
+                    item: expected.0.to_string(),
+                    count: expected.1
+                }
+            );
         }
 
         Ok(())
@@ -87,8 +91,8 @@ mod test {
     fn line_parse_test() -> Result<(), Error> {
         for (i, line) in TEST_DATA.lines().enumerate() {
             let r = parse_list_line(line.trim())?;
-            assert_eq!(r.item, TEST_DATA_RESULTS[i].item);
-            assert_eq!(r.count, TEST_DATA_RESULTS[i].count);
+            assert_eq!(r.item, TEST_DATA_RESULTS[i].0);
+            assert_eq!(r.count, TEST_DATA_RESULTS[i].1);
         }
 
         Ok(())
