@@ -197,6 +197,7 @@ impl<'a, 'b> Gui<'a> {
                 if ui.menu_item(im_str!("Import List from Clipboard")).build() {
                     if let Ok(items) = import_tasks_from_clipboard() {
                         for i in &items {
+                            log::info!("item: {:#?}", i);
                             self.send_to_worker(Request::Recipe {
                                 item: i.item.clone(),
                                 job: None,
