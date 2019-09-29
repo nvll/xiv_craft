@@ -203,6 +203,11 @@ impl<'a, 'b> Gui<'a> {
                                 count: i.count,
                             });
                         }
+                        Gui::set_modal_text(
+                            &mut self.state,
+                            "Tasks imported",
+                            &format!("Imported {} tasks from the clipboard", items.len()),
+                        );
                     }
                 }
                 if ui.menu_item(im_str!("Clear List")).build() {
