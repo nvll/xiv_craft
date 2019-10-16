@@ -7,41 +7,34 @@ mod recipe;
 mod rpc;
 mod task;
 
-use clap::{App, Arg};
 use failure::Error;
 use rpc::{Request, Response, Worker};
 use simple_logger;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
+use structopt::StructOpt;
 
-fn main() -> Result<(), Error> {
-    let matches =
-        App::new("Ventures")
-            .arg(
-                Arg::with_name("verbose")
-                    .short("v")
-                    .multiple(true)
-                    .help("Log level to use. Multiple can be used"),
-            )
-            .arg(Arg::with_name("slow").short("s").long("slow").help(
-                "Run with a longer delay between UI actions. Recommended for slower computers.",
-            ))
-            .subcommand(
-                App::new("debug1")
-                    .help("Bring up the item window and attempt to search for an iron ingot"),
-            )
-            .subcommand(App::new("debug2").help(
-                "Attempt to set up the UI to build a collectable cloud pearl as CRP (set 13)",
-            ))
-            .get_matches();
+#[derive(Debug, StructOpt)]
+#[structopt(name = "talan", about = "A FFXIV Crafting helper")]
+struct Opts {
+    /// Enable log levels
+    #[structopt(short = "v", parse(from_occurrences))]
+    verbose: u64,
+}
 
-    let level = match matches.occurrences_of("verbose") {
+fn parse_arguments() -> Result<(), Error> {
+    let args = Opts::from_args();
+    simple_logger::init_with_level(match args.verbose {
         1 => log::Level::Debug,
         2 => log::Level::Trace,
         _ => log::Level::Info,
-    };
+    })?;
 
-    simple_logger::init_with_level(level)?;
+    Ok(())
+}
+
+fn main() -> Result<(), Error> {
+    parse_arguments()?;
 
     // These are only read at startup.
     let macros = match macros::get_macro_list() {

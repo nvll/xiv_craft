@@ -13,7 +13,6 @@ failure = "0.1.2"
 imgui = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
 linked_hash_set = "0.1.3"
 log = "0.4.5"
-pretty_env_logger = "0.2.4"
 regex = "1"
 serde = "1.0.92"
 serde_json = "1.0.39"
@@ -22,6 +21,9 @@ walkdir = "2.2.7"
 xiv = { path = "../xiv" }
 xivapi = { path = "../xivapi" }
 gui_support = { path = "../gui-support" }
-clap = "2.33.0"
 simple_logger = "1.3.0"
 clipboard = "0.5.0"
+once_cell = "1.2.0"
+lazy_static = "1.4.0"
+toml = "0.5.3"
+structopt = "0.3.3"
