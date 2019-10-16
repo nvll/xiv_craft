@@ -69,12 +69,14 @@ impl Worker {
             if let Some(request) = self.receive() {
                 match request {
                     Request::Recipe { item, job, count } => {
+                        log::trace!("querying xivapi for \"{}\" (job: {:?})", item, job);
                         let recipe_result = if let Ok(search_results) = xivapi::query_recipe(&item)
                         {
                             recipe::Recipe::filter(&search_results, &item, job)
                         } else {
                             None
                         };
+                        log::trace!("query result: {:#?}", recipe_result);
                         self.reply(Response::Recipe {
                             recipe: recipe_result,
                             count,

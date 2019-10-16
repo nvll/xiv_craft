@@ -21,9 +21,9 @@ walkdir = "2.2.7"
 xiv = { path = "../xiv" }
 xivapi = { path = "../xivapi" }
 gui_support = { path = "../gui-support" }
-simple_logger = "1.3.0"
 clipboard = "0.5.0"
 once_cell = "1.2.0"
 lazy_static = "1.4.0"
 toml = "0.5.3"
 structopt = "0.3.3"
+env_logger = "0.7.0"

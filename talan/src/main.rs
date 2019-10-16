@@ -7,9 +7,10 @@ mod recipe;
 mod rpc;
 mod task;
 
+use env_logger;
 use failure::Error;
+use log;
 use rpc::{Request, Response, Worker};
-use simple_logger;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use structopt::StructOpt;
@@ -24,11 +25,16 @@ struct Opts {
 
 fn parse_arguments() -> Result<(), Error> {
     let args = Opts::from_args();
-    simple_logger::init_with_level(match args.verbose {
-        1 => log::Level::Debug,
-        2 => log::Level::Trace,
-        _ => log::Level::Info,
-    })?;
+    env_logger::Builder::from_default_env()
+        .filter(
+            Some("talan"),
+            match args.verbose {
+                1 => log::LevelFilter::Debug,
+                2 => log::LevelFilter::Trace,
+                _ => log::LevelFilter::Info,
+            },
+        )
+        .init();
 
     Ok(())
 }
