@@ -423,6 +423,24 @@ impl<'a, 'b> Gui<'a> {
                         {
                             config.options.gear[i] = max(config.options.gear[i], 0);
                         }
+                        ui.same_line(0.0);
+                        ui.push_id(i as i32); // specialists need a unique id
+                        if ui.checkbox(im_str!("specialist"), &mut config.options.specialist[i]) {
+                            if config
+                                .options
+                                .specialist
+                                .iter()
+                                .fold(0, |acc, &x| acc + (x as i32))
+                                > 3
+                            {
+                                log::error!(
+                                    "Cannot set {} as a specialist, limit of 3 already reached!",
+                                    xiv::JOBS[i]
+                                );
+                                config.options.specialist[i] = false;
+                            }
+                        }
+                        ui.pop_id();
                     }
                     if ui
                         .input_int(
