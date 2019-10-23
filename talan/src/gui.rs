@@ -308,7 +308,7 @@ impl<'a, 'b> Gui<'a> {
                     ));
                     if ui
                         .collapsing_header(&header_name)
-                        .default_open(false)
+                        .default_open(true)
                         .build()
                     {
                         ui.indent();
