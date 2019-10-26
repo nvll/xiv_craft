@@ -1,8 +1,12 @@
 [package]
 authors = ["Christopher Anderson <chris@nullcode.org>"]
+build = "build.rs"
 edition = "2018"
 name = "talan"
 version = "0.3.0"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [dependencies]
 failure = "0.1.2"
