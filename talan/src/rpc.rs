@@ -1,6 +1,5 @@
 use crate::config;
 use crate::craft;
-use crate::macros;
 use crate::recipe;
 use crate::task;
 use std::sync::mpsc::{Receiver, Sender};
@@ -15,7 +14,6 @@ pub enum Request {
     Craft {
         options: config::Options,
         tasks: Vec<task::Task>,
-        macros: Vec<macros::MacroFile>,
     },
     StopCrafting,
 }
@@ -82,11 +80,7 @@ impl Worker {
                             count,
                         });
                     }
-                    Request::Craft {
-                        options,
-                        tasks,
-                        macros,
-                    } => {
+                    Request::Craft { options, tasks } => {
                         // Send a full status update to the main thread after completing
                         // an item.
                         let status_fn = |status: &[task::Status]| {
@@ -109,7 +103,6 @@ impl Worker {
                                 handle,
                                 &options,
                                 &tasks[..],
-                                &macros[..],
                                 status_fn,
                                 continue_fn,
                             );

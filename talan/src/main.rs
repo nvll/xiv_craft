@@ -11,6 +11,7 @@ use env_logger;
 use failure::Error;
 use log;
 use rpc::{Request, Response, Worker};
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use structopt::StructOpt;
@@ -18,12 +19,18 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "talan", about = "A FFXIV Crafting helper")]
 struct Opts {
-    /// Enable log levels
+    /// Path to the macro file
+    #[structopt(short = "m", long = "macros", default_value = "macros.toml")]
+    macros_path: PathBuf,
+    /// Path to the config file
+    #[structopt(short = "c", long = "config", default_value = "config.json")]
+    config_path: PathBuf,
+    /// Enable log levels (use multiple -v for more logging)
     #[structopt(short = "v", parse(from_occurrences))]
     verbose: u64,
 }
 
-fn parse_arguments() -> Result<(), Error> {
+fn parse_arguments() -> Result<config::Config, Error> {
     let args = Opts::from_args();
     env_logger::Builder::from_default_env()
         .filter(
@@ -36,49 +43,34 @@ fn parse_arguments() -> Result<(), Error> {
         )
         .init();
 
-    Ok(())
+    if let Err(e) = macros::from_path(&args.macros_path) {
+        log::error!(
+            "Failed to read macros from '{}': {}",
+            &args.macros_path.to_str().unwrap(),
+            e.to_string(),
+        );
+        std::process::exit(1);
+    }
+
+    let mut cfg = config::get_config(Some(&args.config_path));
+    for task in &mut cfg.tasks {
+        task.macro_id = macros::get_macro_for_recipe(
+            task.recipe.durability,
+            task.recipe.level,
+            cfg.options.specialist[task.recipe.job as usize],
+        );
+    }
+
+    Ok(cfg)
 }
 
 fn main() -> Result<(), Error> {
-    parse_arguments()?;
-
-    // These are only read at startup.
-    let macros = match macros::get_macro_list() {
-        Ok(m) => m,
-        Err(e) => {
-            log::error!(
-                "Couldn't open macros directory for reading: {}",
-                e.to_string()
-            );
-            return Ok(()); // counter-intuitive, but we want to suppress additional messages.
-        }
-    };
-
-    log::info!("Scanning macros:");
-    for m in &macros {
-        log::info!("\t{}", m.name);
-    }
-
-    let mut cfg = config::get_config(None);
-    // If we cached any task info but the user doesn't want it anymore then it
-    // needs to be cleared out.
-    if !cfg.options.reload_tasks {
-        cfg.tasks.clear();
-    } else {
-        // If we restored tasks from a saved config and the macro count changed
-        // then the id may not be valid anymore.
-        for task in &mut cfg.tasks {
-            if task.macro_id >= macros.len() as i32 {
-                task.macro_id = 0;
-            }
-        }
-    }
-
+    let mut cfg = parse_arguments()?;
     let (client_tx, worker_rx): (Sender<Request>, Receiver<Request>) = channel();
     let (worker_tx, client_rx): (Sender<Response>, Receiver<Response>) = channel();
     thread::spawn(move || Worker::new(worker_rx, worker_tx).worker_thread());
 
-    let mut gui = gui::Gui::new(&macros, &client_tx, &client_rx);
+    let mut gui = gui::Gui::new(&client_tx, &client_rx);
     gui.start(&mut cfg);
 
     println!("exiting...");

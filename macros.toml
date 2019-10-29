@@ -1,0 +1,27 @@
+# This file contains example macros to use as a basis for configuring
+# how to craft items. Each [[xiv_macro]] corresponds to a specific macro
+# and *must* contain a name, durability, and list of actions.
+#
+# Optional fields supported are
+# max_rlvl = <number>
+#   - This macro is for recipes with a recipe level <= max_rlvl.
+# min_rlvl = <number>
+#   - This macro is for recipes with a recipe level >= min_rlvl.
+# specialist = <true|false> (defaults to false)
+#   - This macro should only be used of the recipe's job is configured as a specialist
+
+[[xiv_macro]]
+name = "Eulmore Deliveries"
+durability = 60
+specialist = true
+actions = """
+/ac Reflect <wait.3>
+/ac "Prudent Touch" <wait.3>
+/ac Innovation <wait.2>
+/ac "Delicate Synthesis" <wait.3>
+/ac "Prudent Touch" <wait.3>
+/ac "Delicate Synthesis" <wait.3>
+/ac "Delicate Synthesis" <wait.3>
+/ac "Delicate Synthesis" <wait.3>
+"""
+

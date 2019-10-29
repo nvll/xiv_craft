@@ -1,6 +1,6 @@
 use glium::glutin::{self, Event, WindowEvent};
 use glium::{Display, Surface};
-use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, ImStr, ImString, StyleColor, Ui};
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, StyleColor, Ui};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::time::Instant;
@@ -73,7 +73,11 @@ pub fn init(width: f64, height: f64, title: &str) -> System {
 
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
     let mut style = imgui.style_mut();
-    style.use_light_colors();
+    style.use_dark_colors();
+    style.frame_border_size = 1.0;
+    style.frame_rounding = 0.0;
+    style.window_rounding = 0.0;
+    style.colors[StyleColor::TitleBg as usize] = style.colors[StyleColor::TitleBgActive as usize];
     style.colors[StyleColor::PlotHistogram as usize] = style.colors[StyleColor::Button as usize];
 
     let renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
@@ -133,25 +137,13 @@ impl System {
         }
     }
 }
-// Combo boxes are annoying because I need slices of &ImStr, and I can't easily do that
-// at compile time. This helper function takes a vector of ImStrings and handles the
-// conversion to an appropriate slice.
-pub fn combobox<'a>(
-    ui: &imgui::Ui<'a>,
-    label: &ImStr,
-    mut pos: &mut i32,
-    items: &[ImString],
-) -> bool {
-    let im_items: Vec<&ImStr> = items.iter().map(|l| l.as_ref()).collect();
-    ui.combo(label, &mut pos, &im_items[..], im_items.len() as i32)
-}
 
 pub fn set_talan_style(style: &mut imgui::Style) {
     // Set all windows / widgets to rectangles
-    // style.child_rounding = 1.0;
-    // style.popup_rounding = 1.0;
-    // style.frame_rounding = 1.0;
-    // style.window_rounding = 1.0;
+    style.child_rounding = 0.0;
+    style.popup_rounding = 0.0;
+    style.frame_rounding = 0.0;
+    style.window_rounding = 0.0;
     style.frame_border_size = 1.0;
 
     // This style is adapted from the light style in imgui_draw.cpp
@@ -160,7 +152,7 @@ pub fn set_talan_style(style: &mut imgui::Style) {
     style.colors[StyleColor::WindowBg as usize] = [0.94, 0.94, 0.94, 1.00];
     style.colors[StyleColor::ChildBg as usize] = [0.00, 0.00, 0.00, 0.00];
     style.colors[StyleColor::PopupBg as usize] = [1.00, 1.00, 1.00, 0.98];
-    style.colors[StyleColor::Border as usize] = [0.00, 0.00, 0.00, 0.30];
+    style.colors[StyleColor::Border as usize] = [0.00, 0.00, 0.00, 0.00];
     style.colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
     style.colors[StyleColor::FrameBg as usize] = [1.00, 1.00, 1.00, 1.00];
     style.colors[StyleColor::FrameBgHovered as usize] = [0.26, 0.59, 0.98, 0.40];
@@ -180,7 +172,8 @@ pub fn set_talan_style(style: &mut imgui::Style) {
     style.colors[StyleColor::ButtonHovered as usize] = [0.26, 0.59, 0.98, 1.00];
     style.colors[StyleColor::ButtonActive as usize] = [0.06, 0.53, 0.98, 1.00];
     style.colors[StyleColor::Header as usize] = [0.26, 0.59, 0.98, 0.31];
-    style.colors[StyleColor::HeaderHovered as usize] = [0.26, 0.59, 0.98, 0.80];
+    style.colors[StyleColor::HeaderHovered as usize] = [0.26, 0.59, 0.98, 0.31];
+    //style.colors[StyleColor::HeaderHovered as usize] = [0.26, 0.59, 0.98, 0.80];
     style.colors[StyleColor::HeaderActive as usize] = [0.26, 0.59, 0.98, 1.00];
     style.colors[StyleColor::Separator as usize] = [0.39, 0.39, 0.39, 1.00];
     style.colors[StyleColor::SeparatorHovered as usize] = [0.14, 0.44, 0.80, 0.78];

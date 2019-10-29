@@ -14,18 +14,21 @@ pub fn import_tasks_from_clipboard() -> Result<Vec<ListItem>, Error> {
 }
 
 pub fn parse_item_list(string: &str) -> Result<Vec<ListItem>, Error> {
+    log::info!("Reading items from list:");
     let mut v: Vec<ListItem> = Vec::new();
     for line in string.split('\n') {
         let line_trimmed = line.trim();
         if let Ok(r) = parse_list_line(line_trimmed) {
+            log::info!("    {}x {}", r.count, r.item);
             v.push(r);
         }
     }
+    log::info!("done.");
 
     Ok(v)
 }
 
-fn parse_list_line<'a>(line: &str) -> Result<ListItem, Error> {
+fn parse_list_line(line: &str) -> Result<ListItem, Error> {
     // Every item should have {NUM}x {NAME}. If we can't split here, then
     // assume the string is just an item name and count is 1.
     let v: Vec<&str> = line.split("x ").collect();

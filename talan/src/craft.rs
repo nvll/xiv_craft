@@ -1,6 +1,6 @@
 //use crate::role_actions::RoleActions;
 use crate::config::Options;
-use crate::macros::{Action, MacroFile};
+use crate::macros::{macros, Action};
 use crate::task;
 use log;
 use std::thread::sleep;
@@ -15,7 +15,6 @@ pub fn craft_items<'a, F, S>(
     handle: xiv::XivHandle,
     options: &'a Options,
     tasks: &[task::Task],
-    macros: &[MacroFile],
     mut status_fn: F,
     mut continue_fn: S,
 ) where
@@ -85,7 +84,7 @@ pub fn craft_items<'a, F, S>(
                 task.quantity
             );
             // Time to craft the items
-            execute_task(handle, &task, &macros[task.macro_id as usize].actions[..]);
+            execute_task(handle, &task, &macros()[task.macro_id as usize].actions[..]);
             {
                 status[i].finished += 1;
             }
@@ -168,7 +167,7 @@ pub fn select_any_materials(handle: xiv::XivHandle, task: &task::Task) {
 }
 
 pub fn select_materials(handle: xiv::XivHandle, task: &task::Task) {
-    if task.use_any_mats {
+    if !task.specify_materials {
         return select_any_materials(handle, task);
     }
 

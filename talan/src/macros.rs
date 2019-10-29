@@ -1,7 +1,11 @@
 use failure::Error;
+use imgui::ImString;
+use once_cell::sync::OnceCell;
 use regex::Regex;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
 
 #[derive(Clone, Debug)]
 pub struct MacroFile {
@@ -10,10 +14,109 @@ pub struct MacroFile {
     pub actions: Vec<Action>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Action {
     pub name: String,
     pub wait: u64,
+}
+
+// The |Toml| variant structures are used entirely for deserializing
+// from a user friendly format into the actions necessary for Talan.
+#[derive(Debug, Deserialize)]
+pub struct MacroToml {
+    pub name: String,
+    pub durability: u32,
+    pub max_rlvl: Option<u32>,
+    pub min_rlvl: Option<u32>,
+    pub specialist: Option<bool>,
+    pub actions: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MacroFileToml {
+    pub xiv_macro: Vec<MacroToml>,
+}
+
+#[derive(Debug)]
+pub struct Macro {
+    pub name: String,
+    pub gui_name: ImString,
+    pub durability: u32,
+    pub max_rlvl: Option<u32>,
+    pub min_rlvl: Option<u32>,
+    pub specialist: bool,
+    pub actions: Vec<Action>,
+}
+
+static MACROS: OnceCell<Vec<Macro>> = OnceCell::new();
+
+pub fn macros() -> &'static Vec<Macro> {
+    MACROS.get().expect("Macros have not been initialized")
+}
+
+// A wrapper for |from_str| to read from the macros file.
+pub fn from_path(path: &Path) -> Result<(), Error> {
+    from_str(&std::fs::read_to_string(path)?)
+}
+
+pub fn from_str(s: &str) -> Result<(), Error> {
+    let des = toml::from_str::<MacroFileToml>(s)?;
+    let mut parsed_vec: Vec<Macro> = Vec::new();
+    for macro_toml in &des.xiv_macro {
+        parsed_vec.push(Macro {
+            name: macro_toml.name.clone(),
+            gui_name: ImString::new(macro_toml.name.clone()),
+            durability: macro_toml.durability,
+            max_rlvl: macro_toml.max_rlvl,
+            min_rlvl: macro_toml.min_rlvl,
+            specialist: if let Some(spec) = macro_toml.specialist {
+                spec
+            } else {
+                false
+            },
+            actions: parse_buffer(&macro_toml.actions)?,
+        });
+    }
+
+    MACROS.set(parsed_vec).expect("couldn't set up macro cache");
+    Ok(())
+}
+
+lazy_static::lazy_static! {
+    static ref ACTIONS: HashMap<&'static str, f64> = {
+        let mut h = HashMap::new();
+        h.insert("Advanced Synthesis", 2.5);
+        h.insert("Advanced Touch", 2.5);
+        h.insert("Basic Synthesis", 2.5);
+        h.insert("Basic Touch", 2.5);
+        h.insert("Brand of the Elements", 2.0);
+        h.insert("Byregot's Blessing", 2.5);
+        h.insert("Careful Observation", 2.0);
+        h.insert("Delicate Synthesis", 2.5);
+        h.insert("Final Appraisal", 2.0);
+        h.insert("Great Strides", 2.0);
+        h.insert("Hasty Touch", 2.5);
+        h.insert("Ingenuity", 2.0);
+        h.insert("Inner Quiet", 2.0);
+        h.insert("Innovation", 2.0);
+        h.insert("Intensive Synthesis", 2.5);
+        h.insert("Master's Mend", 2.5);
+        h.insert("Muscle Memory", 2.5);
+        h.insert("Name of the Elements", 2.5);
+        h.insert("Observe", 2.0);
+        h.insert("Patient Touch", 2.5);
+        h.insert("Precise Touch", 2.5);
+        h.insert("Preparatory Touch", 2.5);
+        h.insert("Prudent Touch", 2.5);
+        h.insert("Rapid Synthesis", 2.5);
+        h.insert("Reuse", 2.5);
+        h.insert("Reflect", 2.5);
+        h.insert("Standard Touch", 2.5);
+        h.insert("Trained Eye", 2.5);
+        h.insert("Tricks of the Trade", 2.5);
+        h.insert("Waste Not", 2.5);
+        h
+    };
 }
 
 impl fmt::Display for Action {
@@ -34,25 +137,6 @@ fn parse_buffer(buffer: &str) -> Result<Vec<Action>, Error> {
     }
 
     Ok(actions)
-}
-
-// Opens |file| and attempts to parse it as a macro list.
-pub fn parse_file(macros_file: &Path) -> Result<Vec<Action>, Error> {
-    let buffer = fs::read_to_string(macros_file)?;
-    parse_buffer(&buffer)
-}
-
-pub fn get_macro_list() -> Result<Vec<MacroFile>, failure::Error> {
-    let mut v: Vec<MacroFile> = Vec::new();
-    for entry in fs::read_dir("macros")? {
-        let entry = entry?;
-        v.push(MacroFile {
-            name: entry.file_name().into_string().unwrap(),
-            path: entry.path(),
-            actions: parse_file(&entry.path())?,
-        });
-    }
-    Ok(v)
 }
 
 // Extract the action and wait times for a given line in a macros. Returns a
@@ -78,6 +162,29 @@ pub fn parse_line(line: &str) -> Result<Action, Error> {
     })
 }
 
+// Picks the most appropriate macro for a given set of recipe values. If none
+// are found matching the durability then it will choose the last macro.
+pub fn get_macro_for_recipe(durability: u32, rlvl: u32, specialist: bool) -> usize {
+    for (i, m) in macros().iter().enumerate() {
+        if let Some(m_min) = m.min_rlvl {
+            if m_min > rlvl {
+                continue;
+            }
+        }
+
+        if let Some(m_max) = m.max_rlvl {
+            if m_max < rlvl {
+                continue;
+            }
+        }
+
+        if m.durability == durability && m.specialist == specialist {
+            return i;
+        }
+    }
+    macros().len() - 1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,6 +199,23 @@ mod tests {
         /ac "Byregot's Blessing" <wait.3>
         #/ac "Commented Action" <wait.1>
         /ac "Careful Synthesis III" <wait.3>"#;
+
+    const TEST_MACRO_TOML: &str = r#"
+        [[xiv_macro]]
+        name = "Test Macro"
+        durability = 80
+        max_rlvl = 390
+        actions = """
+            /ac test string
+            /ac string test <wait.2>
+        """"#;
+
+    #[test]
+    fn test_read() -> Result<(), Error> {
+        let m = toml::from_str::<MacroFileToml>(TEST_MACRO_TOML);
+        println!("output {:#?}", m);
+        Ok(())
+    }
 
     #[test]
     fn macros_single_unqoted_no_wait() {

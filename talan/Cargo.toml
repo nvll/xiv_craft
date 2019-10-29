@@ -10,7 +10,8 @@ winres = "0.1"
 
 [dependencies]
 failure = "0.1.2"
-imgui = { git = "https://github.com/Gekkio/imgui-rs", rev="f476c3d" }
+# version 0.3.0-pre
+imgui = { git = "https://github.com/Gekkio/imgui-rs", rev="41be02"}
 linked_hash_set = "0.1.3"
 log = "0.4.5"
 regex = "1"

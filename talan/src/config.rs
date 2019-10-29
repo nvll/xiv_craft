@@ -13,8 +13,6 @@ pub struct Options {
     #[serde(default)]
     pub non_doh_gear: i32,
     #[serde(default)]
-    pub reload_tasks: bool,
-    #[serde(default)]
     pub use_slow_navigation: bool,
 }
 
