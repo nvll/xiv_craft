@@ -28,6 +28,7 @@ pub struct MacroToml {
     pub durability: u32,
     pub max_rlvl: Option<u32>,
     pub min_rlvl: Option<u32>,
+    pub difficulty: Option<u32>,
     pub specialist: Option<bool>,
     pub actions: String,
 }
@@ -44,6 +45,7 @@ pub struct Macro {
     pub durability: u32,
     pub max_rlvl: Option<u32>,
     pub min_rlvl: Option<u32>,
+    pub difficulty: Option<u32>,
     pub specialist: bool,
     pub actions: Vec<Action>,
 }
@@ -69,6 +71,7 @@ pub fn from_str(s: &str) -> Result<(), Error> {
             durability: macro_toml.durability,
             max_rlvl: macro_toml.max_rlvl,
             min_rlvl: macro_toml.min_rlvl,
+            difficulty: macro_toml.difficulty,
             specialist: if let Some(spec) = macro_toml.specialist {
                 spec
             } else {
@@ -164,7 +167,12 @@ pub fn parse_line(line: &str) -> Result<Action, Error> {
 
 // Picks the most appropriate macro for a given set of recipe values. If none
 // are found matching the durability then it will choose the last macro.
-pub fn get_macro_for_recipe(durability: u32, rlvl: u32, specialist: bool) -> usize {
+pub fn get_macro_for_recipe(
+    durability: u32,
+    rlvl: u32,
+    difficulty: u32,
+    specialist: bool,
+) -> usize {
     for (i, m) in macros().iter().enumerate() {
         if let Some(m_min) = m.min_rlvl {
             if m_min > rlvl {
@@ -174,6 +182,13 @@ pub fn get_macro_for_recipe(durability: u32, rlvl: u32, specialist: bool) -> usi
 
         if let Some(m_max) = m.max_rlvl {
             if m_max < rlvl {
+                continue;
+            }
+        }
+
+        // Match on difficulty if it exists
+        if let Some(m_difficulty) = m.difficulty {
+            if m_difficulty != difficulty {
                 continue;
             }
         }

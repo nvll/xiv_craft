@@ -124,6 +124,7 @@ impl<'a, 'b> Gui<'a> {
                             task.macro_id = get_macro_for_recipe(
                                 task.recipe.durability,
                                 task.recipe.level,
+                                task.recipe.difficulty,
                                 config.options.specialist[task.recipe.job as usize],
                             );
                             config.tasks.push(task);

@@ -57,6 +57,7 @@ fn parse_arguments() -> Result<config::Config, Error> {
         task.macro_id = macros::get_macro_for_recipe(
             task.recipe.durability,
             task.recipe.level,
+            task.recipe.difficulty,
             cfg.options.specialist[task.recipe.job as usize],
         );
     }

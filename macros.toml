@@ -1,14 +1,19 @@
-# This file contains example macros to use as a basis for configuring
-# how to craft items. Each [[xiv_macro]] corresponds to a specific macro
-# and *must* contain a name, durability, and list of actions.
+# This file contains example macros to use as a basis for configuring how to
+# craft items. Each [[xiv_macro]] corresponds to a specific macro and *must*
+# contain a name, durability, and list of actions. max_rlvl, min_rlvl,
+# difficulty, and specialist are optional.
 #
 # Optional fields supported are
 # max_rlvl = <number>
 #   - This macro is for recipes with a recipe level <= max_rlvl.
 # min_rlvl = <number>
 #   - This macro is for recipes with a recipe level >= min_rlvl.
+# difficulty = <number>
+#   - The listed difficulty of the macro. This is referred to as 'Progress' on
+#     garlandtools and Teamcraft, but 'Difficulty' in-game on the recipe.
 # specialist = <true|false> (defaults to false)
 #   - This macro should only be used of the recipe's job is configured as a specialist
+#
 
 [[xiv_macro]]
 name = "Eulmore Deliveries"
