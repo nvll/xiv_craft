@@ -188,8 +188,6 @@ pub fn get_macro_for_recipe(durability: u32, rlvl: u32, specialist: bool) -> usi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     const TEST_MACRO_BUFFER: &str = r#"
         /ac "Comfort Zone" <wait.3>
@@ -282,15 +280,6 @@ mod tests {
     #[test]
     fn macros_buffer() -> Result<(), Error> {
         let actual = parse_buffer(TEST_MACRO_BUFFER)?;
-        assert_eq!(validate_test_entries(actual), true);
-        Ok(())
-    }
-
-    #[test]
-    fn macros_file() -> Result<(), Error> {
-        let mut file = NamedTempFile::new()?;
-        file.write_all(TEST_MACRO_BUFFER.as_bytes()).unwrap();
-        let actual = parse_file(file.path().as_ref())?;
         assert_eq!(validate_test_entries(actual), true);
         Ok(())
     }
