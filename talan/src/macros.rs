@@ -222,7 +222,7 @@ mod tests {
     const TEST_MACRO_TOML: &str = r#"
         [[xiv_macro]]
         name = "Test Macro"
-        durability = 80
+        durability = [ 80 ]
         max_rlvl = 390
         actions = """
             /ac test string
@@ -230,10 +230,10 @@ mod tests {
         """"#;
 
     #[test]
-    fn test_read() -> Result<(), Error> {
+    fn test_read() {
         let m = toml::from_str::<MacroFileToml>(TEST_MACRO_TOML);
-        println!("output {:#?}", m);
-        Ok(())
+        println!("Parsed macro: {:#?}", m);
+        assert!(m.is_ok());
     }
 
     #[test]
