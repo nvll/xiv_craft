@@ -3,6 +3,11 @@
 # contain a name, durability, and list of actions. max_rlvl, min_rlvl,
 # difficulty, and specialist are optional.
 #
+# Durability is a list of comma-separated durability values the macro can be
+# used for. For example, the following would allow the macro to be selected
+# for 35 and 40 durability recipes.
+#   durability = [ 35, 40 ]
+#
 # Optional fields supported are
 # max_rlvl = <number>
 #   - This macro is for recipes with a recipe level <= max_rlvl.
@@ -17,7 +22,7 @@
 
 [[xiv_macro]]
 name = "Eulmore Deliveries"
-durability = 60
+durability = [ 60, 80 ]
 specialist = true
 actions = """
 /ac Reflect <wait.3>
@@ -30,3 +35,12 @@ actions = """
 /ac "Delicate Synthesis" <wait.3>
 """
 
+# This macro will work for any recipe below level 50 of any durability
+[[xiv_macro]]
+name = "1 - 50 HQ"
+rlvl_max = 50
+durability = [ 35, 40, 60, 70, 80 ]
+actions = """
+/ac "Trained Eye" <wait.3>
+/ac "Careful Synthesis" <wait.3>
+"""

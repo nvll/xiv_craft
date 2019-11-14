@@ -25,7 +25,7 @@ pub struct Action {
 #[derive(Debug, Deserialize)]
 pub struct MacroToml {
     pub name: String,
-    pub durability: u32,
+    pub durability: Vec<u32>,
     pub max_rlvl: Option<u32>,
     pub min_rlvl: Option<u32>,
     pub difficulty: Option<u32>,
@@ -42,7 +42,7 @@ pub struct MacroFileToml {
 pub struct Macro {
     pub name: String,
     pub gui_name: ImString,
-    pub durability: u32,
+    pub durability: Vec<u32>,
     pub max_rlvl: Option<u32>,
     pub min_rlvl: Option<u32>,
     pub difficulty: Option<u32>,
@@ -68,7 +68,7 @@ pub fn from_str(s: &str) -> Result<(), Error> {
         parsed_vec.push(Macro {
             name: macro_toml.name.clone(),
             gui_name: ImString::new(macro_toml.name.clone()),
-            durability: macro_toml.durability,
+            durability: macro_toml.durability.clone(),
             max_rlvl: macro_toml.max_rlvl,
             min_rlvl: macro_toml.min_rlvl,
             difficulty: macro_toml.difficulty,
@@ -193,7 +193,13 @@ pub fn get_macro_for_recipe(
             }
         }
 
-        if m.durability == durability && m.specialist == specialist {
+        if m.specialist != specialist {
+            continue;
+        }
+
+        // At this point check if the recipe durability exists in the macro's
+        // durability list.
+        if m.durability.iter().find(|&d| *d == durability).is_some() {
             return i;
         }
     }
