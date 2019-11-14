@@ -227,13 +227,45 @@ mod tests {
         actions = """
             /ac test string
             /ac string test <wait.2>
-        """"#;
+        """
+    "#;
 
     #[test]
-    fn test_read() {
+    fn toml_parse() {
         let m = toml::from_str::<MacroFileToml>(TEST_MACRO_TOML);
         println!("Parsed macro: {:#?}", m);
         assert!(m.is_ok());
+    }
+
+    #[test]
+    fn multiple_durability() {
+        const MACRO_BUFFER: &str = r#"
+            [[xiv_macro]]
+            name = "35 60"
+            durability = [ 35, 60 ]
+            actions = """"""
+
+            [[xiv_macro]]
+            name = "80"
+            durability = [ 80 ]
+            actions = """"""
+
+            [[xiv_macro]]
+            name = "40 70"
+            durability = [ 40, 70 ]
+            actions = """"""
+        "#;
+
+        let m = super::from_str(MACRO_BUFFER);
+        if !m.is_ok() {
+            println!("m failure: {:#?}", m);
+        }
+        assert!(m.is_ok());
+        assert!(super::get_macro_for_recipe(35, 0, 0, false) == 0);
+        assert!(super::get_macro_for_recipe(40, 0, 0, false) == 2);
+        assert!(super::get_macro_for_recipe(60, 0, 0, false) == 0);
+        assert!(super::get_macro_for_recipe(70, 0, 0, false) == 2);
+        assert!(super::get_macro_for_recipe(80, 0, 0, false) == 1);
     }
 
     #[test]
