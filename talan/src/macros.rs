@@ -193,7 +193,7 @@ pub fn get_macro_for_recipe(
             }
         }
 
-        if m.specialist != specialist {
+        if m.specialist && m.specialist != specialist {
             continue;
         }
 
