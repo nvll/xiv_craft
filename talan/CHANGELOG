@@ -1,0 +1,6 @@
+0.4.1
+	Feature: Added support for multiple durabilities in a macro.
+	Bugfix: Specialists now can use non-specialist macros.
+0.4.0
+
+- Start of changelog
