@@ -3,7 +3,7 @@ authors = ["Christopher Anderson <chris@nullcode.org>"]
 build = "build.rs"
 edition = "2018"
 name = "talan"
-version = "0.4.1"
+version = "0.4.2"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

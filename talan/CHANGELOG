@@ -1,6 +1,17 @@
+0.4.2
+	Features:
+	- Added turn-in tool for automating collectable item turn in.
+	- Added a config option for clearing the window instead of always doing it on task start.
+	- Implement the 'Save All' menu option and remove the old save button.
+	- Added an option for gear swapping before crafting to ensure no buffs are remaining.
+	Bugfixes:
+	- Fixed the 1-50 HQ example in macros.toml.
+	
 0.4.1
-	Feature: Added support for multiple durabilities in a macro.
-	Bugfix: Specialists now can use non-specialist macros.
+	Features:
+	- Added support for multiple durabilities in a macro.
+	Bugfixes:
+	- Specialists now can use non-specialist macros.
 0.4.0
 
 - Start of changelog
