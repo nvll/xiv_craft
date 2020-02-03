@@ -221,7 +221,7 @@ pub fn select_materials(handle: xiv::XivHandle, task: &task::Task) {
     }
 }
 
-fn execute_task(handle: xiv::XivHandle, task: &task::Task, actions: &[Action]) {
+fn execute_task(handle: xiv::XivHandle, task: &task::Task, actions: &[&'static Action]) {
     // If we're at the start of a task we will already have the Synthesize button
     // selected with the pointer.
     ui::press_confirm(handle);
@@ -242,13 +242,10 @@ fn execute_task(handle: xiv::XivHandle, task: &task::Task, actions: &[Action]) {
             sleep(delta);
         }
         ui::press_enter(handle);
-        // Handle turning a 3.0 wait in traditional macros into something closer to a real GCD
-        let delay = if action.wait == 2 { 1500 } else { 2500 };
-
         now = Instant::now();
         log::debug!("action: {} ({:?})", action.name, now - prev_action);
         prev_action = now;
-        next_action = now + Duration::from_millis(delay + GCD_PADDING);
+        next_action = now + Duration::from_millis(action.wait_ms + GCD_PADDING);
     }
 
     // Wait for the last GCD to finish

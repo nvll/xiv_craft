@@ -7,6 +7,6 @@ edition = "2018"
 [dependencies]
 xiv = { path = "../xiv" }
 env_logger = "0.7.1"
-log = "0.4.6"
-failure = "0.1.5"
-structopt = "0.2.18"
+log = "0.4.8"
+failure = "0.1.6"
+structopt = "0.3.9"
