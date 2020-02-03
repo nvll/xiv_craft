@@ -5,11 +5,10 @@ authors = ["Christopher Anderson <'chris@nullcode.org'>"]
 edition = "2018"
 
 [dependencies]
-url = "1.7.1"
-reqwest = "0.9.3"
-log = "0.4.5"
-serde_json = "1.0.32"
-failure = "0.1.2"
-serde_derive = "1.0.80"
-serde = "1.0.80"
-env_logger = "0.6.1"
+url = "2.1.1"
+reqwest = { version = "0.10.1", features = ["blocking"] }
+log = "0.4.8"
+serde_json = "1.0.46"
+failure = "0.1.6"
+serde = { version = "1.0.104", features = ["derive"] }
+env_logger = "0.7.1"

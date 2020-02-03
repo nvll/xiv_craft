@@ -171,7 +171,7 @@ pub fn query_recipe(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
         "GameContentLinks",
     ];
     let s: String = columns.iter().map(|e| e.to_string() + ",").collect();
-    let body = reqwest::Client::new()
+    let body = reqwest::blocking::Client::new()
         .get(XIVAPI_SEARCH_URL)
         .query(&[
             ("indexes", "Recipe"),
