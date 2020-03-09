@@ -53,6 +53,7 @@ pub struct ApiRecipe {
     pub AmountIngredient3: u32,
     pub AmountIngredient4: u32,
     pub AmountIngredient5: u32,
+    pub AmountResult: u32,
     pub DifficultyFactor: u32,
     pub DurabilityFactor: u32,
     pub QualityFactor: u32,
@@ -155,6 +156,7 @@ pub fn query_recipe(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
         "AmountIngredient3",
         "AmountIngredient4",
         "AmountIngredient5",
+        "AmountResult",
         "CraftType.ID",
         "DifficultyFactor",
         "DurabilityFactor",
@@ -294,6 +296,16 @@ mod test {
         }
         Ok(())
     }
+
+    #[test]
+    fn quantity_created() -> Result<()> {
+        let inputs = [("Grade 4 Reisui of Vitality", 3), ("Rakshasa Axe", 1)];
+
+        for input in &inputs {
+            let api_results = query_recipe(input.0)?;
+            assert_eq!(input.0, api_results[0].Name);
+            assert_eq!(input.1, api_results[0].AmountResult);
+        }
         Ok(())
     }
 }
