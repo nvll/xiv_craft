@@ -230,6 +230,7 @@ mod tests {
             durability: 35,
             difficulty: 0,
             quality: 0,
+            result_amount: 1,
             level: 0,
             specialist: false,
             id: 0,

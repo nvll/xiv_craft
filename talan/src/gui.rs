@@ -147,7 +147,8 @@ impl<'a, 'b> Gui<'a> {
                 match resp {
                     Response::Recipe { recipe, count } => {
                         if let Some(r) = recipe {
-                            let mut task = Task::new(r, count);
+                            let craft_cnt = (count as f32 / r.result_amount as f32).ceil() as u32;
+                            let mut task = Task::new(r, craft_cnt);
                             task.macro_id = get_macro_for_recipe(
                                 &self.state.macros,
                                 &task.recipe,
@@ -448,7 +449,7 @@ impl<'a, 'b> Gui<'a> {
                     let header_name = ImString::new(format!(
                         "[{}] {}x {} {} (recipe lvl {} | {} durability | {} difficulty | {} quality)",
                         xiv::JOBS[task.recipe.job as usize],
-                        task.quantity,
+                        task.quantity * task.recipe.result_amount,
                         task.recipe.name,
                         if task.is_collectable {
                             "(Collectable)"
